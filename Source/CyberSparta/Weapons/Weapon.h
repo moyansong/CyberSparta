@@ -5,6 +5,7 @@
 #include "CoreMinimal.h"
 #include "GameFramework/Actor.h"
 #include "../Interfaces/InteractInterface.h"
+#include "../Weapons/WeaponTypes.h"
 #include "Weapon.generated.h"
 
 class USkeletalMeshComponent;
@@ -13,15 +14,17 @@ class UWidgetComponent;
 class UAnimationAsset;
 class UCombatComponent;
 class UTexture2D;
+class AMyCharacter;
+class SoundCue;
 
 UENUM(BlueprintType)
 enum class EWeaponState : uint8
 {
-	EWS_Initial UMETA(DisplayName = "Initial State"),//枪刚初始化在世界里
-	EWS_Equipped UMETA(DisplayName = "Equipped"),//装备在人身上
-	EWS_Dropped UMETA(DisplayName = "Dropped"),//被人丢了
-
-	EWS_MAX UMETA(DisplayName = "DefaultMax")
+	EWS_Initial UMETA(DisplayName = "Initial"),// 枪刚初始化在世界里
+	EWS_Equipped UMETA(DisplayName = "Equipped"),// 正在使用的武器
+	EWS_Dropped UMETA(DisplayName = "Dropped"),// 被人丢了
+	EWS_Idle UMETA(DisplayName = "Idle"),// 在人身上但是现在不在用
+	EWS_MAX UMETA(DisplayName = "DefaultMax") // 这个是为了告诉别人这个枚举有几个(枚举是整数)
 };
 
 UCLASS()
@@ -61,33 +64,81 @@ public:
 	UPROPERTY(EditDefaultsOnly, Category = Montage)
 	UAnimMontage* HitReactMontage;
 
-//-----------------------------------------------Functions-------------------------------------------------------------
+	UPROPERTY(EditAnywhere, Category = Animation)
+	UAnimationAsset* ReloadAnimation; // 武器自己换弹的动画
+
+	UPROPERTY(EditDefaultsOnly, Category = Montage)
+	UAnimMontage* ReloadMontage; // 角色换弹的蒙太奇
+//----------------------------------------------Sounds-------------------------------------------------------------
+	
+//---------------------------------------------Functions-------------------------------------------------------------
+	UFUNCTION()
+	virtual bool CanFire();
+	
+	// Fire只会在Server调用，SimulateFire会在Server和Client调用
 	UFUNCTION()
 	virtual void FireStart(const FVector& HitTarget);
 	UFUNCTION()
 	virtual void FireStop();
 
+	UFUNCTION()
+	virtual void LocalFire();
+
 	UFUNCTION(BlueprintCallable)
 	virtual void SimulateFire();
 
-	UFUNCTION()
-	virtual	void EquipWeaponStart();
-	UFUNCTION()
-	virtual	void EquipWeaponStop();
-
 	virtual void InteractStart(AActor* InteractActor) override;
 	virtual void InteractStop(AActor* InteractActor) override;
+
+	UFUNCTION()
+	virtual	void Pickup(AMyCharacter* PickCharacter);
+
+	// Reload和ReloadFinish只会在Server调用
+	UFUNCTION()
+	virtual	void ReloadStart();
+	UFUNCTION()
+	virtual	void ReloadStop();
+
+	UFUNCTION(BlueprintCallable)
+	void SimulateReload();
+
+	UFUNCTION()
+	void ReloadFinished();
+
+	UFUNCTION()
+	virtual	void Equip();
+
+	// 丢弃武器
+	UFUNCTION()
+	virtual void Drop();
+
+	// 设置各种状态下武器的属性
+	UFUNCTION()
+	void OnEquipped();
+	UFUNCTION()
+	void OnDropped();
+	UFUNCTION()
+	void OnIdled();
+
+	void SpendRound();
+
+	virtual void OnRep_Owner() override;
 //--------------------------------------------Set && Get-------------------------------------------------------------
-	virtual void SetInteractWidgetVisibility(bool bVisibility) override;
+	virtual void SetInteractEffectVisibility(bool bVisibility) override;
+
+	void SetAmmo(int32 AmmoToSet);
+	void SetHUDWeaponAmmo();
 
 	void SetWeaponState(EWeaponState State);
 
 	// 武器状态改变时其应发生的事
-	UFUNCTION(BlueprintCallable)
-	virtual void SwitchOfWeaponState();
+	UFUNCTION()
+	virtual void OnStateChanged();
 
 	UFUNCTION(BlueprintCallable)
 	void SetSphereCollision(bool bCanOverlapWithPawn);
+
+	void SetMeshSimulatePhysics(bool bSimulatePhysics);
 
 	FORCEINLINE USkeletalMeshComponent* GetMesh() const { return MeshComponent; }
 
@@ -97,8 +148,13 @@ public:
 
 	FORCEINLINE bool CanAutomaticFire() const { return bCanAutomaticFire; }
 
+	FORCEINLINE bool CanReload() const { return bCanReload; }
+
 protected:
 	virtual void BeginPlay() override;
+
+	UFUNCTION(Client, Reliable)
+	void ClientUpdateAmmo(int32 ServerAmmo);
 
 //--------------------------------------------Callbacks-------------------------------------------------------------
 	UFUNCTION()
@@ -108,19 +164,44 @@ protected:
 	virtual void OnSphereEndOverlap(UPrimitiveComponent* OverlappedComponent, AActor* OtherActor, UPrimitiveComponent* OtherComp, int32 OtherBodyIndex);
 	
 //--------------------------------------------Parameters-------------------------------------------------------------
-	UPROPERTY(ReplicatedUsing = OnRep_WeaponState, VisibleAnywhere, Category = "Parameters")
-		EWeaponState WeaponState;
+	UPROPERTY()
+	AMyCharacter* MyCharacter;
+
+	UPROPERTY(EditAnywhere, Category = Parameter)
+	EWeaponType WeaponType;
+	
+	UPROPERTY(ReplicatedUsing = OnRep_WeaponState, VisibleAnywhere, Category = Parameter)
+	EWeaponState WeaponState;
 	UFUNCTION()
-		void OnRep_WeaponState();
+	void OnRep_WeaponState();
 
-	UPROPERTY(EditAnywhere, Category = "Parameters")
-		bool bIsRangedWeapon = true;
+	UPROPERTY(EditAnywhere, Category = Parameter)
+	bool bIsRangedWeapon = true;
 
-	UPROPERTY(EditAnywhere, Category = "Parameters")
-		float FireDelay = 0.1f;
+	UPROPERTY(EditAnywhere, Category = Parameter)
+	float FireDelay = 0.1f;
 
-	UPROPERTY(EditAnywhere, Category = "Parameters")
-		bool bCanAutomaticFire = true;
+	UPROPERTY(EditAnywhere, Category = Parameter)
+	bool bCanAutomaticFire = true;
+
+	UPROPERTY(EditAnywhere, Category = Parameter)
+	bool bCanReload = true;
+
+	// 还未收到的Server发来的更新Ammo的RPC数
+	int32 AmmoSequence = 0;
+	
+	UPROPERTY(ReplicatedUsing = OnRep_Ammo, EditAnywhere, Category = Ammo)
+	int32 Ammo = 30;
+	UFUNCTION()
+	void OnRep_Ammo();
+	//UPROPERTY(EditAnywhere, Category = Ammo)
+	//int32 Ammo = 30; // 不复制的版本，采用RPC更新,Client-Side Prediction
+
+	UPROPERTY(EditAnywhere, Category = Ammo)
+	int32 MaxAmmo = 30;
+
+	UPROPERTY(EditAnywhere, Category = Ammo)
+	int32 AmmoCostPerFire = 1;
 
 private:
 //--------------------------------------------Components-------------------------------------------------------------

@@ -14,7 +14,7 @@ void UOverHeadWidget::SetDisplayText(FString DisplayTextString)
 
 void UOverHeadWidget::ShowPlayerNetRole(APawn* InPawn, const FString& RoleType)
 {
-	ENetRole NetRole; 
+	ENetRole NetRole = ENetRole::ROLE_Authority;
 	FString Role;
 	if (InPawn)
 	{

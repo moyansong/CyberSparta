@@ -28,6 +28,7 @@ public:
 	UFUNCTION()
 	virtual void InteractStop(AActor* InteractActor) = 0;
 
+	// 设置互动时的效果，例如展现Widget，产生粒子等，bVisibility为真表示显示效果，反之不显示
 	UFUNCTION()
-	virtual void SetInteractWidgetVisibility(bool bVisibility) = 0;
+	virtual void SetInteractEffectVisibility(bool bVisibility) = 0;
 };

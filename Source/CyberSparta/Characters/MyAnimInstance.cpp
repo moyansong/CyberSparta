@@ -3,10 +3,11 @@
 
 #include "MyAnimInstance.h"
 #include "MyCharacter.h"
-#include "../Weapons/Weapon.h"
-#include "../CyberSparta.h"
 #include "Kismet/KismetMathLibrary.h"
 #include "GameFramework/CharacterMovementComponent.h"
+#include "../Weapons/Weapon.h"
+#include "../CyberSparta.h"
+#include "../Types/CombatState.h"
 
 void UMyAnimInstance::NativeInitializeAnimation()
 {
@@ -19,14 +20,8 @@ void UMyAnimInstance::NativeUpdateAnimation(float DeltaTime)
 {
 	Super::NativeUpdateAnimation(DeltaTime);
 	
-	if (!MyCharacter)
-	{
-		MyCharacter = Cast<AMyCharacter>(TryGetPawnOwner());
-	}
-	if (!MyCharacter)
-	{
-		return;
-	}
+	MyCharacter = MyCharacter ? MyCharacter : Cast<AMyCharacter>(TryGetPawnOwner());
+	if (!MyCharacter) return;
 
 	FVector Velocity = MyCharacter->GetVelocity();
 	Velocity.Z = 0.f;
@@ -39,21 +34,22 @@ void UMyAnimInstance::NativeUpdateAnimation(float DeltaTime)
 	bWeaponEquipped = MyCharacter->IsWeaponEquipped();
 	EquippedWeapon = MyCharacter->GetEquippedWeapon();
 	bIsAiming = MyCharacter->IsAiming();
+	bIsAlive = MyCharacter->IsAlive();
+	bUseLeftHandIK = MyCharacter->GetCombatState() != ECombatState::ECS_Reloading && bIsAlive && !MyCharacter->GetDisableGameplay();
+	bUseAimOffset = MyCharacter->GetCombatState() != ECombatState::ECS_Reloading && bIsAlive && !MyCharacter->GetDisableGameplay();
+	bUseRightHandRotation = MyCharacter->GetCombatState() != ECombatState::ECS_Reloading && bIsAlive && !MyCharacter->GetDisableGameplay();
 
 	FRotator AimRotation = MyCharacter->GetBaseAimRotation();
 	FRotator MovementRotation = UKismetMathLibrary::MakeRotFromX(MyCharacter->GetVelocity());
 	Direction = UKismetMathLibrary::NormalizedDeltaRotator(MovementRotation, AimRotation).Yaw;
 
 	AimOffset(DeltaTime);
-	if (EquippedWeapon->IsRangedWeapon())
-	{
-		SetHandTransform(DeltaTime);
-	}
+	SetHandTransform(DeltaTime);
 }
 
 void UMyAnimInstance::AimOffset(float DeltaTime)
 {
-	if (MyCharacter->IsAiming())
+	if (MyCharacter && MyCharacter->IsAiming() && bUseAimOffset && bIsAlive)
 	{
 		FRotator AimRotation = UKismetMathLibrary::NormalizedDeltaRotator(MyCharacter->GetBaseAimRotation(), MyCharacter->GetActorRotation());
 		AO_Yaw = AimRotation.Yaw;
@@ -68,10 +64,7 @@ void UMyAnimInstance::AimOffset(float DeltaTime)
 
 void UMyAnimInstance::SetHandTransform(float DeltaTime)
 {
-	if (!bWeaponEquipped || !EquippedWeapon)
-	{
-		return;
-	}
+	if (!MyCharacter || !bWeaponEquipped || !EquippedWeapon || !EquippedWeapon->IsRangedWeapon() || !bIsAlive) return;
 
 	USkeletalMeshComponent* WeaponMesh = EquippedWeapon->GetMesh();
 	USkeletalMeshComponent* CharacterMesh = MyCharacter->GetMesh();
@@ -91,8 +84,15 @@ void UMyAnimInstance::SetHandTransform(float DeltaTime)
 		{
 			bLocallyControlled = true;
 			FTransform RightHandTransform = CharacterMesh->GetSocketTransform(FName("hand_r"), ERelativeTransformSpace::RTS_World);
-			FRotator LookAtRotation = UKismetMathLibrary::FindLookAtRotation(RightHandTransform.GetLocation(), RightHandTransform.GetLocation() + (RightHandTransform.GetLocation() - MyCharacter->GetHitTarget()));
-			RightHandRotation = FMath::RInterpTo(RightHandRotation, LookAtRotation, DeltaTime, 25.f);
+			if (bUseRightHandRotation)
+			{
+				FRotator LookAtRotation = UKismetMathLibrary::FindLookAtRotation(RightHandTransform.GetLocation(), RightHandTransform.GetLocation() + (RightHandTransform.GetLocation() - MyCharacter->GetHitTarget()));
+				RightHandRotation = FMath::RInterpTo(RightHandRotation, LookAtRotation, DeltaTime, 25.f);
+			}
+			else
+			{
+				RightHandRotation = RightHandTransform.Rotator();
+			}
 		}
 
 		// Debug枪口指向和准星指向的射线

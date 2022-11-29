@@ -41,9 +41,7 @@ public:
 
 	FORCEINLINE bool IsTargeting() const { return bIsTargeting; }
 
-	virtual	void EquipWeaponStart() override;
-		
-	virtual	void EquipWeaponStop() override;
+	virtual	void Equip() override;
 
 protected:
 //--------------------------------------------Parameters---------------------------------------------------------
@@ -53,19 +51,19 @@ protected:
 	UPROPERTY(EditAnywhere, Category = Projectile)
 	TSubclassOf<AShellCase> ShellCaseClass;
 
-	UPROPERTY(EditAnywhere, Category = Parameters)
+	UPROPERTY(EditAnywhere, Category = Parameter)
 	float TargetFOV = 30.f;
 
-	UPROPERTY(EditAnywhere, Category = Parameters)
+	UPROPERTY(EditAnywhere, Category = Parameter)
 	float TargetInterpSpeed = 20.f;
 
-	UPROPERTY(EditAnywhere, Category = Parameters)
+	UPROPERTY(EditAnywhere, Category = Parameter)
 	float DefaultFOV;
 
-	UPROPERTY(VisibleAnywhere, Category = Parameters)
+	UPROPERTY(VisibleAnywhere, Category = Parameter)
 	float CurrFOV;
 
-	UPROPERTY(VisibleAnywhere, Category = Parameters)
+	UPROPERTY(VisibleAnywhere, Category = Parameter)
 	bool bIsTargeting = false;
 
 private:

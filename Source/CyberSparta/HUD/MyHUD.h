@@ -6,9 +6,15 @@
 #include "GameFramework/HUD.h"
 #include "MyHUD.generated.h"
 
+class AMyPlayerController;
 class UTexture2D;
 class UUserWidget;
 class UAttributeWidget;
+class UWeaponWidget;
+class UGameStateWidget;
+class UAnnouncementWidget;
+class USettlementWidget;
+
 
 USTRUCT(BlueprintType)
 struct FHUDPackage
@@ -24,9 +30,6 @@ public:
 	FLinearColor CrosshairsColor;
 };
 
-/**
- * 
- */
 UCLASS()
 class CYBERSPARTA_API AMyHUD : public AHUD
 {
@@ -48,11 +51,40 @@ public:
 //------------------------------------------------Functions--------------------------------------------------------------
 	FORCEINLINE void SetHUDPackage(const FHUDPackage& Package) { HUDPackage = Package; }
 
+	void CreateInProgressWidget();
+	void RemoveInProgressWidget();
+
+	void CreateMetchStartWidget();
+
+	void CreateSettlementWidget();
 //------------------------------------------------Parameters--------------------------------------------------------------
+	UPROPERTY()
+	AMyPlayerController* MyController;
+	
 	UPROPERTY(EditAnywhere, Category = Attribute)
 	TSubclassOf<UUserWidget> AttributeWidgetClass;
-
+	UPROPERTY()
 	UAttributeWidget* AttributeWidget;
+
+	UPROPERTY(EditAnywhere, Category = Weapon)
+	TSubclassOf<UUserWidget> WeaponWidgetClass;
+	UPROPERTY()
+	UWeaponWidget* WeaponWidget;
+
+	UPROPERTY(EditAnywhere, Category = Game)
+	TSubclassOf<UUserWidget> GameStateWidgetClass;
+	UPROPERTY()
+	UGameStateWidget* GameStateWidget;
+
+	UPROPERTY(EditAnywhere, Category = Game)
+	TSubclassOf<UUserWidget> AnnouncementWidgetClass;
+	UPROPERTY()
+	UAnnouncementWidget* AnnouncementWidget;
+
+	UPROPERTY(EditAnywhere, Category = Game)
+	TSubclassOf<UUserWidget> SettlementWidgetClass;
+	UPROPERTY()
+	USettlementWidget* SettlementWidget;
 
 private:
 	FHUDPackage HUDPackage;

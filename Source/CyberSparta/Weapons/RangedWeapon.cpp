@@ -34,10 +34,11 @@ void ARangedWeapon::FireStart(const FVector& HitTarget)
 	Super::FireStart(HitTarget);
 
 	// 只在服务器生成子弹，复制到客户端
-	if (!HasAuthority()) return;
-
-	// 拓展：HitTarget加上后坐力
-	SpawnProjectile(HitTarget);
+	if (HasAuthority())
+	{
+		// 拓展：HitTarget加上后坐力
+		SpawnProjectile(HitTarget);
+	}
 }
 
 void ARangedWeapon::SimulateFire()
@@ -119,7 +120,7 @@ void ARangedWeapon::InterpTargetFOV(float DeltaTime)
 {
 	if (!GetOwner()) return;
 
-	AMyCharacter* MyCharacter = Cast<AMyCharacter>(GetOwner());
+	MyCharacter = MyCharacter ? MyCharacter : Cast<AMyCharacter>(GetOwner());
 	if (!MyCharacter || !MyCharacter->GetFollowCamera()) return;
 
 	if (bIsTargeting)
@@ -134,20 +135,15 @@ void ARangedWeapon::InterpTargetFOV(float DeltaTime)
 	MyCharacter->GetFollowCamera()->SetFieldOfView(CurrFOV);
 }
 
-void ARangedWeapon::EquipWeaponStart()
+void ARangedWeapon::Equip()
 {
-	Super::EquipWeaponStart();
+	Super::Equip();
 
 	if (!GetOwner()) return;
 
-	AMyCharacter* MyCharacter = Cast<AMyCharacter>(GetOwner());
+	MyCharacter = MyCharacter ? MyCharacter : Cast<AMyCharacter>(GetOwner());
 	if (MyCharacter)
 	{
 		DefaultFOV = MyCharacter->GetFollowCamera()->FieldOfView;
 	}
-}
-
-void ARangedWeapon::EquipWeaponStop()
-{
-	Super::EquipWeaponStop();
 }

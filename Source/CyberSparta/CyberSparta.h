@@ -7,6 +7,10 @@
 
 #define ECC_SkeletalMesh ECollisionChannel::ECC_GameTraceChannel1
 
+#define CUSTOM_DEPTH_PURPLE 250
+#define CUSTOM_DEPTH_BLUE 251
+#define CUSTOM_DEPTH_TAN 252
+
 static void Cout(UObject* WorldContext, const FString& Msg, FColor Color = FColor::Red, float Duration = 5.0f)
 {
 	if (!ensure(WorldContext))
@@ -43,6 +47,6 @@ static void Cout(UObject* WorldContext, float Num, FColor Color = FColor::Red, f
 	FString NetPrefix = World->IsNetMode(NM_Client) ? "[CLIENT] " : "[SERVER] ";
 	if (GEngine)
 	{
-		GEngine->AddOnScreenDebugMessage(-1, 1.0f, FColor::Red, NetPrefix + FString::Printf(TEXT("%f"), Num));
+		GEngine->AddOnScreenDebugMessage(-1, Duration, FColor::Red, NetPrefix + FString::Printf(TEXT("%f"), Num));
 	}
 }

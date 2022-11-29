@@ -8,9 +8,7 @@
 
 class AMyCharacter;
 class AWeapon;
-/**
- * 
- */
+
 UCLASS()
 class CYBERSPARTA_API UMyAnimInstance : public UAnimInstance
 {
@@ -33,11 +31,11 @@ public:
 
 private:
 //------------------------------------------Parameters----------------------------------------------------------
-	UPROPERTY(BlueprintReadOnly, Category = Character, meta = (AllowPrivateAccess = "true"))
+	UPROPERTY(BlueprintReadOnly, Category = Paramters, meta = (AllowPrivateAccess = "true"))
 	AMyCharacter* MyCharacter;
 
-	UPROPERTY(BlueprintReadOnly, Category = Character, meta = (AllowPrivateAccess = "true"))
-	AWeapon* MyWeapon;
+	UPROPERTY(BlueprintReadOnly, Category = Paramters, meta = (AllowPrivateAccess = "true"))
+	AWeapon* EquippedWeapon;
 
 	UPROPERTY(BlueprintReadOnly, Category = Movement, meta = (AllowPrivateAccess = "true"))
 	float Speed;
@@ -50,9 +48,6 @@ private:
 
 	UPROPERTY(BlueprintReadOnly, Category = Movement, meta = (AllowPrivateAccess = "true"))
 	bool bWeaponEquipped;
-
-	UPROPERTY(BlueprintReadOnly, Category = Movement, meta = (AllowPrivateAccess = "true"))
-	AWeapon* EquippedWeapon;
 
 	UPROPERTY(BlueprintReadOnly, Category = Movement, meta = (AllowPrivateAccess = "true"))
 	bool bIsCrouched;
@@ -76,10 +71,22 @@ private:
 	FTransform LeftHandTransform; // 拿枪时左手的位置,确保你的武器有个LeftHandSocket
 
 	UPROPERTY(BlueprintReadOnly, Category = Movement, meta = (AllowPrivateAccess = "true"))
-	FRotator RightHandRotation;
+	FRotator RightHandRotation;	// 旋转右手使得枪口指向准星
 
 	UPROPERTY(BlueprintReadOnly, Category = Movement, meta = (AllowPrivateAccess = "true"))
-	bool bLocallyControlled = false;
+	bool bUseLeftHandIK; // 换弹时左手不用放在枪上
+
+	UPROPERTY(BlueprintReadOnly, Category = Movement, meta = (AllowPrivateAccess = "true"))
+	bool bUseRightHandRotation; // 换弹时不用旋转右手
+
+	UPROPERTY(BlueprintReadOnly, Category = Movement, meta = (AllowPrivateAccess = "true"))
+	bool bUseAimOffset;
+
+	UPROPERTY(BlueprintReadOnly, Category = Movement, meta = (AllowPrivateAccess = "true"))
+	bool bLocallyControlled;
+
+	UPROPERTY(BlueprintReadOnly, Category = Movement, meta = (AllowPrivateAccess = "true"))
+	bool bIsAlive;
 //------------------------------------------Animations----------------------------------------------------------
 	
 };

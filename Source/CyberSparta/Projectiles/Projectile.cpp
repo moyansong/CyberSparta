@@ -28,16 +28,21 @@ AProjectile::AProjectile()
 	CollisionComponent->SetCollisionResponseToChannel(ECollisionChannel::ECC_WorldStatic, ECollisionResponse::ECR_Block);
 	CollisionComponent->SetCollisionResponseToChannel(ECC_SkeletalMesh, ECollisionResponse::ECR_Block);
 
-	ProjectileMovementComponent = CreateDefaultSubobject<UProjectileMovementComponent>(TEXT("ProjectileMovementComponent"));
-	ProjectileMovementComponent->bRotationFollowsVelocity = true;
-	ProjectileMovementComponent->InitialSpeed = 15000.f;
-	ProjectileMovementComponent->MaxSpeed = 15000.f;
+	MeshComponent = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("Mesh"));
+	MeshComponent->SetupAttachment(RootComponent);
+	MeshComponent->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+
 }
 
 void AProjectile::BeginPlay()
 {
 	Super::BeginPlay();
 	
+	if (HasAuthority())
+	{
+		CollisionComponent->OnComponentHit.AddDynamic(this, &AProjectile::OnHit);
+	}
+
 	if (Tracer)
 	{
 		TracerComponent = UGameplayStatics::SpawnEmitterAttached(
@@ -50,10 +55,11 @@ void AProjectile::BeginPlay()
 		);
 	}
 
-	if (HasAuthority())
-	{
-		CollisionComponent->OnComponentHit.AddDynamic(this, &AProjectile::OnHit);
-	}
+	//AMyCharacter* MyCharacter = Cast<AMyCharacter>(GetOwner());
+	//if (MyCharacter)
+	//{
+	//	bShouldSimulateHit = MyCharacter->ShouldMulticastEffect();
+	//}
 }
 
 void AProjectile::Destroyed()
@@ -73,20 +79,17 @@ void AProjectile::Tick(float DeltaTime)
 
 void AProjectile::OnHit(UPrimitiveComponent* HitComp, AActor* OtherActor, UPrimitiveComponent* OtherComp, FVector NormalImpulse, const FHitResult& Hit)
 {
-	MulticastHit();
+	if (OtherActor == GetOwner()) return;
+	MulticastHit(); 
 
 	AMyCharacter* MyCharacter = Cast<AMyCharacter>(OtherActor);
-	if (MyCharacter)
+	if (MyCharacter && bShouldSimulateHit)
 	{
 		MyCharacter->MulticastHit();
 	}
 
 	ApplyDamage(HitComp, OtherActor, OtherComp, NormalImpulse, Hit);
 	Destroy();
-}
-
-void AProjectile::ApplyDamage(UPrimitiveComponent* HitComp, AActor* OtherActor, UPrimitiveComponent* OtherComp, FVector NormalImpulse, const FHitResult& Hit)
-{
 }
 
 void AProjectile::SimulateHit()
@@ -106,5 +109,34 @@ void AProjectile::MulticastHit_Implementation()
 	if (bShouldSimulateHit)
 	{
 		SimulateHit();
+	}
+}
+
+void AProjectile::ApplyDamage(UPrimitiveComponent* HitComp, AActor* OtherActor, UPrimitiveComponent* OtherComp, FVector NormalImpulse, const FHitResult& Hit)
+{
+}
+
+void AProjectile::Explode()
+{
+	APawn* FiringPawn = GetInstigator();
+	if (FiringPawn && HasAuthority())
+	{
+		AController* FiringController = FiringPawn->GetController();
+		if (FiringController)
+		{
+			UGameplayStatics::ApplyRadialDamageWithFalloff(
+				this,
+				Damage,
+				10.f,
+				GetActorLocation(),
+				DamageInnerRadius,
+				DamageOuterRadius,
+				1.f,
+				UDamageType::StaticClass(),
+				TArray<AActor*>(),
+				this,
+				FiringController
+			);
+		}
 	}
 }

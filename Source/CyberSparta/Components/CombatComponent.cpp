@@ -9,6 +9,7 @@
 #include "Camera/CameraComponent.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "TimerManager.h"
+#include "Components/TextBlock.h"
 #include "../CyberSparta.h"
 #include "../Characters/MyAnimInstance.h"
 #include "../Weapons/Weapon.h"
@@ -16,6 +17,8 @@
 #include "../Characters/MyCharacter.h"
 #include "../PlayerController//MyPlayerController.h"
 #include "../HUD/MyHUD.h"
+#include "../HUD/WeaponWidget.h"
+#include "../GameMode/MyGameMode.h"
 
 UCombatComponent::UCombatComponent()
 {
@@ -29,7 +32,6 @@ void UCombatComponent::BeginPlay()
 	Super::BeginPlay();
 	MyController = MyController ? MyController : Cast<AMyPlayerController>(MyCharacter->Controller);
 }
-
 
 void UCombatComponent::TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction)
 {
@@ -58,34 +60,201 @@ void UCombatComponent::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& Out
 
 	DOREPLIFETIME(UCombatComponent, EquippedWeapon);
 	DOREPLIFETIME(UCombatComponent, bIsAiming);
+	DOREPLIFETIME(UCombatComponent, CombatState);
+	DOREPLIFETIME(UCombatComponent, Weapons);
+	DOREPLIFETIME(UCombatComponent, WeaponClasses);
+	DOREPLIFETIME(UCombatComponent, CurrWeaponIndex);
 }
 
-void UCombatComponent::EquipWeaponStart(AWeapon* Weapon)
+void UCombatComponent::UninitializeComponent()
 {
-	if (!MyCharacter || !Weapon)
+	Super::UninitializeComponent();
+
+}
+
+void UCombatComponent::OnRep_CombatState()
+{
+	switch (CombatState)
 	{
+		case ECombatState::ECS_Reloading:
+			SimulateReload();
+			break;
+	}
+}
+
+void UCombatComponent::SpawnDefaultWeapons()
+{
+	// 在Lobby等地方不生成默认武器,只有Server能获得GameMode
+	AMyGameMode* MyGameMode = Cast<AMyGameMode>(UGameplayStatics::GetGameMode(this));
+	MyCharacter = MyCharacter ? MyCharacter : Cast<AMyCharacter>(GetOwner());
+	UWorld* World = GetWorld();
+	if (World && MyGameMode && GetOwner() && MyCharacter && MyCharacter->IsAlive())
+	{
+		FActorSpawnParameters SpawnParams;
+		SpawnParams.Owner = GetOwner();
+		APawn* InstigatorPawn = Cast<APawn>(GetOwner());
+		SpawnParams.Instigator = InstigatorPawn;
+
+		for (auto WeaponClass : WeaponClasses)
+		{
+			AWeapon* Weapon = World->SpawnActor<AWeapon>(
+				WeaponClass,
+				FVector(0.f, 0.f, 10000.f),
+				FRotator::ZeroRotator,
+				SpawnParams
+				);
+			if (Weapon)
+			{
+				AddWeapon(Weapon);
+			}
+		}
+
+		EquipWeapon(0);
+	}
+}
+
+void UCombatComponent::OnRep_Weapons()
+{
+	if (WeaponsNum < Weapons.Num() && Weapons.Num() > 0)
+	{
+		SetIdleWeapon(Weapons[Weapons.Num() - 1]);
+	}
+	WeaponsNum = Weapons.Num();
+}
+
+void UCombatComponent::AddWeapon(AWeapon* Weapon)
+{
+	if (!MyCharacter || !Weapon || (Weapons.Num() == WeaponClasses.Num() && WeaponClasses.Contains(Weapon->GetClass()))) return;
+	if (MyCharacter->HasAuthority())
+	{
+		Weapons.AddUnique(Weapon);
+		WeaponClasses.AddUnique(Weapon->GetClass());
+		SetIdleWeapon(Weapon);
+		WeaponsNum = Weapons.Num();
+	}
+	else
+	{
+		ServerAddWeapon(Weapon);
+	}
+}
+
+void UCombatComponent::ServerAddWeapon_Implementation(AWeapon* Weapon)
+{
+	AddWeapon(Weapon);
+}
+
+void UCombatComponent::RemoveWeapon(AWeapon* Weapon)
+{
+	if (Weapon && MyCharacter && MyCharacter->HasAuthority())
+	{
+		Weapons.Remove(Weapon);
+		WeaponClasses.Remove(Weapon->GetClass());
+		WeaponsNum = Weapons.Num();
+	}
+}
+
+void UCombatComponent::SetIdleWeapon(AWeapon* Weapon)
+{
+	if (!Weapon) return;
+
+	MyCharacter = MyCharacter ? MyCharacter : Cast<AMyCharacter>(GetOwner());
+	Weapon->SetOwner(MyCharacter);
+	if (MyCharacter && MyCharacter->GetMesh())
+	{
+		Weapon->SetWeaponState(EWeaponState::EWS_Idle);
+		const USkeletalMeshSocket* HandSocket = MyCharacter->GetMesh()->GetSocketByName(FName("hand_rSocket"));
+		if (HandSocket)
+		{
+			HandSocket->AttachActor(Weapon, MyCharacter->GetMesh());
+		}
+	}
+}
+
+void UCombatComponent::EquipWeapon(int32 Value)
+{
+	MyCharacter = MyCharacter ? MyCharacter : Cast<AMyCharacter>(GetOwner());
+	if (!MyCharacter || Weapons.IsEmpty())
+	{
+		EquippedWeapon = nullptr;
 		return;
 	}
 
-	// Server会负责所有人的Equip，EquippedWeapon会复制到客户端
-	EquippedWeapon = Weapon;
-	EquippedWeapon->SetWeaponState(EWeaponState::EWS_Equipped);
-	EquippedWeapon->SetOwner(MyCharacter);
-	EquippedWeapon->EquipWeaponStart();
-	const USkeletalMeshSocket* HandSocket = MyCharacter->GetMesh()->GetSocketByName(FName("hand_rSocket"));
-	if (HandSocket)
+	int32 NewIndex = CurrWeaponIndex + Value;
+	if (NewIndex < 0) NewIndex = Weapons.Num() - 1;
+	else if (NewIndex >= Weapons.Num()) NewIndex = 0;
+	
+	// 为防止延迟先在客户端做一遍
+	CurrWeaponIndex = NewIndex;
+	if (EquippedWeapon) EquippedWeapon->SetWeaponState(EWeaponState::EWS_Idle);
+	EquippedWeapon = Weapons[CurrWeaponIndex];
+	if (EquippedWeapon)
 	{
-		HandSocket->AttachActor(EquippedWeapon, MyCharacter->GetMesh());
+		EquippedWeapon->SetOwner(MyCharacter);
+		EquippedWeapon->Equip();
+	}
+
+	if (!MyCharacter->HasAuthority())
+	{
+		ServerEquipWeapon(Value);
 	}
 }
 
-void UCombatComponent::EquipWeaponStop(AWeapon* Weapon)
+void UCombatComponent::ServerEquipWeapon_Implementation(int32 Value)
 {
+	EquipWeapon(Value);
+}
+
+void UCombatComponent::OnRep_EquippedWeapon()
+{
+	if (!EquippedWeapon) return;
+	EquippedWeapon->SetWeaponState(EWeaponState::EWS_Equipped);
+}
+
+void UCombatComponent::OnRep_CurrWeaponIndex()
+{
+}
+
+void UCombatComponent::ThrowWeapon()
+{
+	if (!EquippedWeapon || !MyCharacter) return;
+	if (MyCharacter->HasAuthority())
+	{
+		EquippedWeapon->Drop();
+		if (EquippedWeapon->GetMesh() && MyCharacter->GetFollowCamera())
+		{
+			EquippedWeapon->GetMesh()->AddImpulseAtLocation(
+				MyCharacter->GetFollowCamera()->GetForwardVector() * 2000.f, 
+				EquippedWeapon->GetActorLocation()
+			);
+		}
+		RemoveWeapon(EquippedWeapon);
+		EquippedWeapon = nullptr;
+		EquipWeapon(0);
+	}
+	else
+	{
+		ServerThrowWeapon();
+	}
+}
+
+void UCombatComponent::ServerThrowWeapon_Implementation()
+{
+	ThrowWeapon();
+}
+
+void UCombatComponent::SetIsAiming(bool bAiming)
+{
+	bIsAiming = bAiming;
+}
+
+bool UCombatComponent::CanFire()
+{
+	return bIsAiming && EquippedWeapon && EquippedWeapon->CanFire() && CombatState != ECombatState::ECS_Reloading && MyCharacter && !MyCharacter->GetDisableGameplay();
 }
 
 void UCombatComponent::FireStart()
 {
-	if (!MyCharacter || !EquippedWeapon || !bIsAiming) return;
+	if (!MyCharacter || !CanFire()) return;
 
 	Fire();// 按键Release过快可能导致定时器还没触发就关闭了，这里保证至少开火一次
 	MyCharacter->GetWorldTimerManager().SetTimer(
@@ -107,15 +276,17 @@ void UCombatComponent::FireStop()
 
 void UCombatComponent::Fire()
 {
-	if (!MyCharacter || !EquippedWeapon || !bIsAiming || !CanFire()) return;
+	if (!MyCharacter || !CanFire()) return;
 
 	CrosshairsFireFactor += 1.f;
 	CrosshairsFireFactor = FMath::Min(CrosshairsFireFactor, 5.f);
-
+	
+	if (EquippedWeapon) EquippedWeapon->LocalFire();
+	
 	ServerFireStart(MyHitTarget);
 
 	// 若不需要广播开火，则只在本地客户端模拟开火
-	if (!MyCharacter->ShouldMulticastFire())
+	if (!MyCharacter->ShouldMulticastEffect())
 	{
 		SimulateFire();
 	}
@@ -125,24 +296,26 @@ void UCombatComponent::SimulateFire()
 {
 	if (!MyCharacter || !EquippedWeapon) return;
 
-	MyCharacter->PlayAnimMontage(EquippedWeapon->FireMontage);
+	if (EquippedWeapon->FireMontage)
+	{
+		MyCharacter->PlayAnimMontage(EquippedWeapon->FireMontage);
+	}
 	EquippedWeapon->SimulateFire();
 }
 
 void UCombatComponent::ServerFireStart_Implementation(const FVector_NetQuantize& HitTarget)
 {
-	MulticastFireStart(HitTarget);
+	EquippedWeapon->FireStart(HitTarget);
+	CombatState = ECombatState::ECS_Firing;
+	if (MyCharacter->ShouldMulticastEffect())
+	{
+		MulticastFireStart(HitTarget);
+	}
 }
 
 void UCombatComponent::MulticastFireStart_Implementation(const FVector_NetQuantize& HitTarget)
 {
-	if (!MyCharacter || !EquippedWeapon) return;
-
-	EquippedWeapon->FireStart(HitTarget);
-	if (MyCharacter->ShouldMulticastFire())
-	{
-		SimulateFire();
-	}
+	SimulateFire();
 }
 
 void UCombatComponent::TargetStart()
@@ -167,65 +340,148 @@ void UCombatComponent::TargetStop()
 	}
 }
 
-void UCombatComponent::SetIsAiming(bool bAiming)
+void UCombatComponent::ReloadStart()
 {
-	bIsAiming = bAiming;
+	if (CombatState != ECombatState::ECS_Reloading && EquippedWeapon && EquippedWeapon->CanReload())
+	{
+		ServerReloadStart();
+	}
 }
 
-void UCombatComponent::OnRep_EquippedWeapon()
+void UCombatComponent::ReloadStop()
 {
-	// 变量应该尽量少的复制，在已经复制的变量调用回调时可以在这里设置一些客户端的其他变量，避免复制变量
+
+}
+
+void UCombatComponent::ServerReloadStart_Implementation()
+{
+	CombatState = ECombatState::ECS_Reloading;
+	SimulateReload();
+
+	// 后续用动画通知来代替
+	if (MyCharacter)
+	{
+		MyCharacter->GetWorldTimerManager().SetTimer(
+			ReloadTimer,
+			this,
+			&UCombatComponent::ReloadFinished,
+			2.f,
+			false
+		);
+	}
+}
+
+void UCombatComponent::SimulateReload()
+{
+	if (!MyCharacter || !EquippedWeapon) return;
+	
+	if (EquippedWeapon->ReloadMontage)
+	{
+		MyCharacter->PlayAnimMontage(EquippedWeapon->ReloadMontage);
+	}
+	EquippedWeapon->SimulateReload();
+}
+
+void UCombatComponent::ReloadFinished()
+{
+	if (MyCharacter && MyCharacter->HasAuthority() && EquippedWeapon)
+	{
+		CombatState = ECombatState::ECS_Idle;
+		EquippedWeapon->ReloadFinished();
+	}
+}
+
+bool UCombatComponent::IsHUDVaild()
+{
+	if (!MyCharacter)
+	{
+		MyCharacter = Cast<AMyCharacter>(GetOwner());
+		if (!MyCharacter) return false;
+	}
+	if (!MyController)
+	{
+		MyController = Cast<AMyPlayerController>(MyCharacter->Controller);
+		if (!MyController) return false;
+	}
+	if (!MyHUD)
+	{
+		MyHUD = MyController->GetMyHUD();
+		if (!MyHUD) return false;
+	}
+	if (!WeaponWidget)
+	{
+		WeaponWidget = MyHUD->WeaponWidget;
+		if (!WeaponWidget) return false;
+	}
+	return true;
+}
+
+void UCombatComponent::UpdateHUD(AMyHUD* PlayerHUD)
+{
+	if (PlayerHUD)
+	{
+		MyHUD = PlayerHUD;
+	}
+}
+
+void UCombatComponent::SetHUDWeaponAmmo()
+{
+	if (!IsHUDVaild()) return;
+
+	if (WeaponWidget->AmmoText)
+	{
+		int32 Ammo = EquippedWeapon ? EquippedWeapon->Ammo : 0;
+		int32 MaxAmmo = EquippedWeapon ? EquippedWeapon->MaxAmmo : 0;
+		FString AmmoString = FString::Printf(TEXT("%d / %d"), Ammo, MaxAmmo);
+		WeaponWidget->AmmoText->SetText(FText::FromString(AmmoString));
+	}
 }
 
 void UCombatComponent::SetHUDCrosshairs(float DeltaTime)
 {
-	if (!MyCharacter || !MyCharacter->Controller) return;
+	if (!MyCharacter || !MyController) return;
 
-	MyController = MyController == nullptr ? Cast<AMyPlayerController>(MyCharacter->Controller) : MyController;
-	if (MyController)
+	MyHUD = MyHUD ? MyHUD : MyController->GetMyHUD();
+	if (MyHUD)
 	{
-		MyHUD = MyHUD == nullptr ? Cast<AMyHUD>(MyController->GetHUD()) : MyHUD;
-		if (MyHUD)
+		float CrosshairSpread;
+		if (EquippedWeapon)
 		{
-			float CrosshairSpread;
-			if (EquippedWeapon)
-			{
-				CrosshairSpread = EquippedWeapon->CorsshiarsSpreadScale;
-				HUDPackage.CrosshairsCenter = EquippedWeapon->CrosshairsCenter;
-				HUDPackage.CrosshairsLeft = EquippedWeapon->CrosshairsLeft;
-				HUDPackage.CrosshairsRight = EquippedWeapon->CrosshairsRight;
-				HUDPackage.CrosshairsTop = EquippedWeapon->CrosshairsTop;
-				HUDPackage.CrosshairsBottom = EquippedWeapon->CrosshairsBottom;
-			}
-			else
-			{
-				CrosshairSpread = 1.f;
-				HUDPackage.CrosshairsCenter = nullptr;
-				HUDPackage.CrosshairsLeft = nullptr;
-				HUDPackage.CrosshairsRight = nullptr;
-				HUDPackage.CrosshairsTop = nullptr;
-				HUDPackage.CrosshairsBottom = nullptr;
-			}
-
-			// 计算 Corsshairs Spread
-			FVector Velocity = MyCharacter->GetVelocity();
-			Velocity.Z = 0.f;
-			CrosshairSpread = Velocity.Size() / 400.f;
-
-			if (MyCharacter->GetCharacterMovement()->IsFalling())
-			{
-				CrosshairsInAirFactor = FMath::FInterpTo(CrosshairsInAirFactor, 2.25f, DeltaTime, 2.25f);
-			}
-			else
-			{
-				CrosshairsInAirFactor = FMath::FInterpTo(CrosshairsInAirFactor, 0.f, DeltaTime, 20.f);
-			}
-
-			CrosshairsFireFactor = FMath::FInterpTo(CrosshairsFireFactor, 0.f, DeltaTime, 25.f);
-
-			HUDPackage.CrosshairSpread = CrosshairSpread + CrosshairsInAirFactor + CrosshairsFireFactor;
-			MyHUD->SetHUDPackage(HUDPackage);
+			CrosshairSpread = EquippedWeapon->CorsshiarsSpreadScale;
+			HUDPackage.CrosshairsCenter = EquippedWeapon->CrosshairsCenter;
+			HUDPackage.CrosshairsLeft = EquippedWeapon->CrosshairsLeft;
+			HUDPackage.CrosshairsRight = EquippedWeapon->CrosshairsRight;
+			HUDPackage.CrosshairsTop = EquippedWeapon->CrosshairsTop;
+			HUDPackage.CrosshairsBottom = EquippedWeapon->CrosshairsBottom;
 		}
+		else
+		{
+			CrosshairSpread = 1.f;
+			HUDPackage.CrosshairsCenter = nullptr;
+			HUDPackage.CrosshairsLeft = nullptr;
+			HUDPackage.CrosshairsRight = nullptr;
+			HUDPackage.CrosshairsTop = nullptr;
+			HUDPackage.CrosshairsBottom = nullptr;
+		}
+
+		// 计算 Corsshairs Spread
+		FVector Velocity = MyCharacter->GetVelocity();
+		Velocity.Z = 0.f;
+		CrosshairSpread = Velocity.Size() / 400.f;
+
+		if (MyCharacter->GetCharacterMovement()->IsFalling())
+		{
+			CrosshairsInAirFactor = FMath::FInterpTo(CrosshairsInAirFactor, 2.25f, DeltaTime, 2.25f);
+		}
+		else
+		{
+			CrosshairsInAirFactor = FMath::FInterpTo(CrosshairsInAirFactor, 0.f, DeltaTime, 20.f);
+		}
+
+		CrosshairsFireFactor = FMath::FInterpTo(CrosshairsFireFactor, 0.f, DeltaTime, 25.f);
+
+		HUDPackage.CrosshairSpread = CrosshairSpread + CrosshairsInAirFactor + CrosshairsFireFactor;
+		MyHUD->SetHUDPackage(HUDPackage);
 	}
 }
 

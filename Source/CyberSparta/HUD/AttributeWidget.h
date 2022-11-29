@@ -9,9 +9,6 @@
 class UProgressBar;
 class UTextBlock;
 
-/**
- * 
- */
 UCLASS()
 class CYBERSPARTA_API UAttributeWidget : public UUserWidget
 {
@@ -24,4 +21,16 @@ public:
 
 	UPROPERTY(meta = (BindWidget))
 	UTextBlock* HealthText;
+
+	UPROPERTY(meta = (BindWidget))
+	UProgressBar* ShieldBar; 
+
+	UPROPERTY(meta = (BindWidget))
+	UTextBlock* ShieldText;
+
+	UPROPERTY(meta = (BindWidget))
+	UTextBlock* ScoreText;
+
+	UPROPERTY(meta = (BindWidget))
+	UTextBlock* DefeatsText;
 };

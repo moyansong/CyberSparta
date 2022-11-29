@@ -5,7 +5,43 @@
 #include "GameFramework/PlayerController.h"
 #include "Blueprint/UserWidget.h"
 #include "../CyberSparta.h"
+#include "../PlayerController/MyPlayerController.h"
 #include "../HUD/AttributeWidget.h"
+#include "../HUD/WeaponWidget.h"
+#include "../HUD/GameStateWidget.h"
+#include "../HUD/AnnouncementWidget.h"
+#include "../HUD/SettlementWidget.h"
+
+void AMyHUD::BeginPlay()
+{
+	Super::BeginPlay();
+
+	MyController = Cast<AMyPlayerController>(GetOwningPlayerController());
+}
+
+void AMyHUD::CreateInProgressWidget()
+{
+	AttributeWidget = Cast<UAttributeWidget>(CreateAndAddWidget(AttributeWidgetClass));
+	WeaponWidget = Cast<UWeaponWidget>(CreateAndAddWidget(WeaponWidgetClass));
+	GameStateWidget = Cast<UGameStateWidget>(CreateAndAddWidget(GameStateWidgetClass));
+}
+
+void AMyHUD::RemoveInProgressWidget()
+{
+	if (AttributeWidget) AttributeWidget->RemoveFromParent();
+	if (WeaponWidget) WeaponWidget->RemoveFromParent();
+	if (GameStateWidget) GameStateWidget->RemoveFromParent();
+}
+
+void AMyHUD::CreateMetchStartWidget()
+{
+	AnnouncementWidget = Cast<UAnnouncementWidget>(CreateAndAddWidget(AnnouncementWidgetClass));
+}
+
+void AMyHUD::CreateSettlementWidget()
+{
+	SettlementWidget = Cast<USettlementWidget>(CreateAndAddWidget(SettlementWidgetClass));
+}
 
 void AMyHUD::DrawHUD()
 {
@@ -52,17 +88,9 @@ void AMyHUD::DrawCrosshairs(UTexture2D* Texture, FVector2D ViewportCenter, FVect
 	);
 }
 
-void AMyHUD::BeginPlay()
-{
-	Super::BeginPlay();
-
-	AttributeWidget = Cast<UAttributeWidget>(CreateAndAddWidget(AttributeWidgetClass));
-
-}
-
 UUserWidget* AMyHUD::CreateAndAddWidget(TSubclassOf<UUserWidget> WidgetClass)
 {
-	APlayerController* MyController = GetOwningPlayerController();
+	MyController = MyController ? MyController : Cast<AMyPlayerController>(GetOwningPlayerController());
 	if (MyController && WidgetClass)
 	{
 		UUserWidget* Widget = CreateWidget<UUserWidget>(MyController, WidgetClass);

@@ -7,29 +7,34 @@
 #include "Camera/CameraComponent.h"
 #include "Components/CapsuleComponent.h"
 #include "Components/WidgetComponent.h"
+#include "Components/BoxComponent.h"
 #include "Net/UnrealNetwork.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "MyAnimInstance.h"
 #include "../HUD/OverHeadWidget.h"
 #include "../Weapons/Weapon.h"
 #include "../Components/CombatComponent.h"
+#include "../Components/BuffComponent.h"
 #include "../Components/AttributeComponent.h"
+#include "../Components/LagCompensationComponent.h"
 #include "../PlayerController/MyPlayerController.h"
 #include "../GameMode/MyGameMode.h"
+#include "../PlayerStates/MyPlayerState.h"
 
 
 AMyCharacter::AMyCharacter()
 {
 	PrimaryActorTick.bCanEverTick = true;
 
-	GetCapsuleComponent()->InitCapsuleSize(42.f, 96.0f);
-	GetCapsuleComponent()->SetCollisionResponseToChannel(ECollisionChannel::ECC_Camera, ECollisionResponse::ECR_Ignore);
-
 	TurnRateGamepad = 50.f;
 
 	bUseControllerRotationPitch = false;
 	bUseControllerRotationYaw = true;	// 人物绕Z轴的旋转随着Controller绕Z转
 	bUseControllerRotationRoll = false;
+	SpawnCollisionHandlingMethod = ESpawnActorCollisionHandlingMethod::AdjustIfPossibleButAlwaysSpawn;
+
+	GetCapsuleComponent()->InitCapsuleSize(42.f, 96.0f);
+	GetCapsuleComponent()->SetCollisionResponseToChannel(ECollisionChannel::ECC_Camera, ECollisionResponse::ECR_Ignore);
 
 	GetCharacterMovement()->bOrientRotationToMovement = true; // Character moves in the direction of input...	
 	GetCharacterMovement()->RotationRate = FRotator(0.0f, 0.0f, 0.0f);
@@ -63,18 +68,114 @@ AMyCharacter::AMyCharacter()
 	AttributeComponent = CreateDefaultSubobject<UAttributeComponent>(TEXT("AttributeComponent"));
 	AttributeComponent->SetIsReplicated(true);
 
+	BuffComponent = CreateDefaultSubobject<UBuffComponent>(TEXT("BuffComponent"));
+	BuffComponent->SetIsReplicated(true);
+
+	LagCompensationComponent = CreateDefaultSubobject<ULagCompensationComponent>(TEXT("LagCompensationComponent"));
+
 	// 经典数值，为什么这样设置？
 	NetUpdateFrequency = 66.f;
 	MinNetUpdateFrequency = 33.f;
 
 	CurrMaxSpeed = GetCharacterMovement()->MaxWalkSpeed;
+
+	head = CreateDefaultSubobject<UBoxComponent>(TEXT("head"));
+	head->SetupAttachment(GetMesh(), FName("head"));
+	head->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+	HitCollisionBoxes.Add(FName("head"), head);
+
+	pelvis = CreateDefaultSubobject<UBoxComponent>(TEXT("pelvis"));
+	pelvis->SetupAttachment(GetMesh(), FName("pelvis"));
+	pelvis->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+	HitCollisionBoxes.Add(FName("pelvis"), pelvis);
+
+	spine_02 = CreateDefaultSubobject<UBoxComponent>(TEXT("spine_02"));
+	spine_02->SetupAttachment(GetMesh(), FName("spine_02"));
+	spine_02->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+	HitCollisionBoxes.Add(FName("spine_02"), spine_02);
+
+	spine_03 = CreateDefaultSubobject<UBoxComponent>(TEXT("spine_03"));
+	spine_03->SetupAttachment(GetMesh(), FName("spine_03"));
+	spine_03->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+	HitCollisionBoxes.Add(FName("spine_03"), spine_03);
+
+	upperarm_l = CreateDefaultSubobject<UBoxComponent>(TEXT("upperarm_l"));
+	upperarm_l->SetupAttachment(GetMesh(), FName("upperarm_l"));
+	upperarm_l->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+	HitCollisionBoxes.Add(FName("upperarm_l"), upperarm_l);
+
+	upperarm_r = CreateDefaultSubobject<UBoxComponent>(TEXT("upperarm_r"));
+	upperarm_r->SetupAttachment(GetMesh(), FName("upperarm_r"));
+	upperarm_r->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+	HitCollisionBoxes.Add(FName("upperarm_r"), upperarm_r);
+
+	lowerarm_l = CreateDefaultSubobject<UBoxComponent>(TEXT("lowerarm_l"));
+	lowerarm_l->SetupAttachment(GetMesh(), FName("lowerarm_l"));
+	lowerarm_l->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+	HitCollisionBoxes.Add(FName("lowerarm_l"), lowerarm_l);
+
+	lowerarm_r = CreateDefaultSubobject<UBoxComponent>(TEXT("lowerarm_r"));
+	lowerarm_r->SetupAttachment(GetMesh(), FName("lowerarm_r"));
+	lowerarm_r->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+	HitCollisionBoxes.Add(FName("lowerarm_r"), lowerarm_r);
+
+	hand_l = CreateDefaultSubobject<UBoxComponent>(TEXT("hand_l"));
+	hand_l->SetupAttachment(GetMesh(), FName("hand_l"));
+	hand_l->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+	HitCollisionBoxes.Add(FName("hand_l"), hand_l);
+
+	hand_r = CreateDefaultSubobject<UBoxComponent>(TEXT("hand_r"));
+	hand_r->SetupAttachment(GetMesh(), FName("hand_r"));
+	hand_r->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+	HitCollisionBoxes.Add(FName("hand_r"), hand_r);
+
+	thigh_l = CreateDefaultSubobject<UBoxComponent>(TEXT("thigh_l"));
+	thigh_l->SetupAttachment(GetMesh(), FName("thigh_l"));
+	thigh_l->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+	HitCollisionBoxes.Add(FName("thigh_l"), thigh_l);
+
+	thigh_r = CreateDefaultSubobject<UBoxComponent>(TEXT("thigh_r"));
+	thigh_r->SetupAttachment(GetMesh(), FName("thigh_r"));
+	thigh_r->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+	HitCollisionBoxes.Add(FName("thigh_r"), thigh_r);
+
+	calf_l = CreateDefaultSubobject<UBoxComponent>(TEXT("calf_l"));
+	calf_l->SetupAttachment(GetMesh(), FName("calf_l"));
+	calf_l->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+	HitCollisionBoxes.Add(FName("calf_l"), calf_l);
+
+	calf_r = CreateDefaultSubobject<UBoxComponent>(TEXT("calf_r"));
+	calf_r->SetupAttachment(GetMesh(), FName("calf_r"));
+	calf_r->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+	HitCollisionBoxes.Add(FName("calf_r"), calf_r);
+
+	foot_l = CreateDefaultSubobject<UBoxComponent>(TEXT("foot_l"));
+	foot_l->SetupAttachment(GetMesh(), FName("foot_l"));
+	foot_l->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+	HitCollisionBoxes.Add(FName("foot_l"), foot_l);
+
+	foot_r = CreateDefaultSubobject<UBoxComponent>(TEXT("foot_r"));
+	foot_r->SetupAttachment(GetMesh(), FName("foot_r"));
+	foot_r->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+	HitCollisionBoxes.Add(FName("foot_r"), foot_r);
 }
 
-void AMyCharacter::BeginPlay()
+void AMyCharacter::Initialized()
 {
-	Super::BeginPlay();
-	MyController = Cast<AMyPlayerController>(Controller);
-
+	// 让其只发生一次
+	if (!MyController)
+	{
+		MyController = Cast<AMyPlayerController>(Controller);
+		if (AttributeComponent)
+		{
+			AttributeComponent->SetHUDHealth();
+			AttributeComponent->SetHUDShield();
+		}
+		if (CombatComponent)
+		{
+			CombatComponent->SetHUDWeaponAmmo();
+		}
+	}
 	if (OverHeadWidgetComponent)
 	{
 		UOverHeadWidget* OverHeadWidget = Cast<UOverHeadWidget>(OverHeadWidgetComponent->GetUserWidgetObject());
@@ -83,9 +184,19 @@ void AMyCharacter::BeginPlay()
 			OverHeadWidget->ShowPlayerNetRole(this, "Local");
 		}
 	}
+}
+
+void AMyCharacter::BeginPlay()
+{
+	Super::BeginPlay();
+
 	if (HasAuthority())
 	{
 		OnTakeAnyDamage.AddDynamic(this, &AMyCharacter::ReceiveDamage);
+		if (CombatComponent)
+		{
+			CombatComponent->SpawnDefaultWeapons();
+		}
 	}
 }
 
@@ -94,6 +205,7 @@ void AMyCharacter::Tick(float DeltaTime)
 	Super::Tick(DeltaTime);
 
 	HideCharacterIfCameraClose();
+	Initialized();
 }
 
 void AMyCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputComponent)
@@ -111,25 +223,25 @@ void AMyCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputCompone
 	PlayerInputComponent->BindAction("Fire", IE_Released, this, &AMyCharacter::FireStop);
 	PlayerInputComponent->BindAction("Target", IE_Pressed, this, &AMyCharacter::TargetStart);
 	PlayerInputComponent->BindAction("Target", IE_Released, this, &AMyCharacter::TargetStop);
+	PlayerInputComponent->BindAction("Reload", IE_Pressed, this, &AMyCharacter::ReloadStart);
+	PlayerInputComponent->BindAction("Reload", IE_Released, this, &AMyCharacter::ReloadStop);
+	PlayerInputComponent->BindAction("ThrowWeapon", IE_Pressed, this, &AMyCharacter::ThrowWeaponStart);
+	PlayerInputComponent->BindAction("ThrowWeapon", IE_Released, this, &AMyCharacter::ThrowWeaponStop);
 
 	PlayerInputComponent->BindAxis("Move Forward / Backward", this, &AMyCharacter::MoveForward);
 	PlayerInputComponent->BindAxis("Move Right / Left", this, &AMyCharacter::MoveRight);
-
-	// We have 2 versions of the rotation bindings to handle different kinds of devices differently
-	// "turn" handles devices that provide an absolute delta, such as a mouse.
-	// "turnrate" is for devices that we choose to treat as a rate of change, such as an analog joystick
 	PlayerInputComponent->BindAxis("Turn Right / Left Mouse", this, &APawn::AddControllerYawInput);
 	PlayerInputComponent->BindAxis("Turn Right / Left Gamepad", this, &AMyCharacter::TurnAtRate);
 	PlayerInputComponent->BindAxis("Look Up / Down Mouse", this, &APawn::AddControllerPitchInput);
 	PlayerInputComponent->BindAxis("Look Up / Down Gamepad", this, &AMyCharacter::LookUpAtRate);
+	PlayerInputComponent->BindAxis("EquipWeapon", this, &AMyCharacter::EquipWeapon);
 
 	PlayerInputComponent->BindAction("Test", IE_Pressed, this, &AMyCharacter::Test);
 }
 
 void AMyCharacter::Test()
 {
-	if (!IsWeaponEquipped()) Cout(this, "HH");
-	if (!CombatComponent->EquippedWeapon) Cout(this, "FF");
+	//LagCompensationComponent->Test();
 }
 
 void AMyCharacter::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
@@ -137,6 +249,7 @@ void AMyCharacter::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLife
 	Super::GetLifetimeReplicatedProps(OutLifetimeProps);
 
 	DOREPLIFETIME_CONDITION(AMyCharacter, OverlappingActor, COND_OwnerOnly);
+	DOREPLIFETIME(AMyCharacter, bDisableGameplay);
 }
 
 void AMyCharacter::PostInitializeComponents()
@@ -145,17 +258,61 @@ void AMyCharacter::PostInitializeComponents()
 	if (CombatComponent)
 	{
 		CombatComponent->MyCharacter = this;
-		//CombatComponent->MyController = MyController;
 	}
 	if (AttributeComponent)
 	{
 		AttributeComponent->MyCharacter = this;
-		//AttributeComponent->MyController = MyController;
 	}
+	if (BuffComponent)
+	{
+		BuffComponent->MyCharacter = this;
+	}
+	if (LagCompensationComponent)
+	{
+		LagCompensationComponent->MyCharacter = this;
+	}
+}
+
+void AMyCharacter::Destroyed()
+{
+	Super::Destroyed();
+
+}
+
+void AMyCharacter::HideCharacterIfCameraClose()
+{
+	if (!IsLocallyControlled()) return;
+	if ((FollowCamera->GetComponentLocation() - GetActorLocation()).Size() < CameraThreshold)
+	{
+		GetMesh()->SetVisibility(false);
+		if (CombatComponent && CombatComponent->EquippedWeapon && CombatComponent->EquippedWeapon->GetMesh())
+		{
+			CombatComponent->EquippedWeapon->GetMesh()->bOwnerNoSee = true;
+		}
+	}
+	else
+	{
+		GetMesh()->SetVisibility(true);
+		if (CombatComponent && CombatComponent->EquippedWeapon && CombatComponent->EquippedWeapon->GetMesh())
+		{
+			CombatComponent->EquippedWeapon->GetMesh()->bOwnerNoSee = false;
+		}
+	}
+}
+
+void AMyCharacter::SetDisableGameplay(bool DisableGameplay)
+{
+	bDisableGameplay = DisableGameplay;
+}
+
+void AMyCharacter::SetShouldMulticastEffect(bool ShouldMulticastEffect)
+{
+	bShouldMulticastEffect = ShouldMulticastEffect;
 }
 
 void AMyCharacter::MoveForward(float Value)
 {
+	if (bDisableGameplay) return;
 	if ((Controller != nullptr) && (Value != 0.0f))
 	{
 		// find out which way is forward
@@ -170,6 +327,7 @@ void AMyCharacter::MoveForward(float Value)
 
 void AMyCharacter::MoveRight(float Value)
 {
+	if (bDisableGameplay) return;
 	if ((Controller != nullptr) && (Value != 0.0f))
 	{
 		// find out which way is right
@@ -185,28 +343,29 @@ void AMyCharacter::MoveRight(float Value)
 
 void AMyCharacter::TurnAtRate(float Rate)
 {
-	// calculate delta for this frame from the rate information
 	AddControllerYawInput(Rate * TurnRateGamepad * GetWorld()->GetDeltaSeconds());
 }
 
 void AMyCharacter::LookUpAtRate(float Rate)
 {
-	// calculate delta for this frame from the rate information
 	AddControllerPitchInput(Rate * TurnRateGamepad * GetWorld()->GetDeltaSeconds());
 }
 
 void AMyCharacter::JumpStart()
 {
+	if (bDisableGameplay) return;
 	Jump();
 }
 
 void AMyCharacter::JumpStop()
 {
+	if (bDisableGameplay) return;
 	StopJumping();
 }
 
 void AMyCharacter::CrouchStart()
 {
+	if (bDisableGameplay) return;
 	if (bIsCrouched)
 	{
 		UnCrouch();
@@ -221,28 +380,19 @@ void AMyCharacter::CrouchStart()
 
 void AMyCharacter::CrouchStop()
 {
+	if (bDisableGameplay) return;
 	//UnCrouch();
 }
 
-void AMyCharacter::FireStart()
+ECombatState AMyCharacter::GetCombatState() const
 {
-	if (!CombatComponent) return;
-
-	SetIsAiming(true);
-	CombatComponent->FireStart();
-}
-
-void AMyCharacter::FireStop()
-{
-	if (!CombatComponent) return;
-	
-	CombatComponent->FireStop();
+	return CombatComponent ? CombatComponent->CombatState : ECombatState::ECS_MAX;
 }
 
 void AMyCharacter::SetIsAiming(bool bAiming)
 {
 	if (IsAiming() == bAiming) return;
-	
+
 	// 瞄准时不能跑
 	// 放在前面，如果按下按键的是客户端，会先在本地修改这个变量，在调用ServerRPC修改，进行复制
 	// 这样的好处是客户端按下按键后能在本客户端立刻响应(其他客户端还需要等待复制)，避免网络延迟导致变量复制很慢
@@ -269,25 +419,85 @@ void AMyCharacter::SetIsAiming(bool bAiming)
 	// 如果网络有延迟会导致客户端按下对应按键后很久才生效
 }
 
+bool AMyCharacter::IsAiming()
+{
+	return CombatComponent && CombatComponent->bIsAiming;
+}
+
+FVector AMyCharacter::GetHitTarget() const
+{
+	return CombatComponent ? CombatComponent->MyHitTarget : FVector();
+}
+
+void AMyCharacter::FireStart()
+{
+	if (!CombatComponent) return;
+
+	SetIsAiming(true);
+	CombatComponent->FireStart();
+}
+
+void AMyCharacter::FireStop()
+{
+	if (!CombatComponent) return;
+	
+	CombatComponent->FireStop();
+}
+
 void AMyCharacter::TargetStart()
 {
-	if (IsLocallyControlled() && CombatComponent)
+	if (bDisableGameplay) return;
+	/*if (IsLocallyControlled() && CombatComponent)
 	{
 		SetIsAiming(true);
 		CombatComponent->TargetStart();
-	}
+	}*/
 }
 
 void AMyCharacter::TargetStop()
 {
-	if (IsLocallyControlled() && CombatComponent)
+	if (bDisableGameplay) return;
+	/*if (IsLocallyControlled() && CombatComponent)
 	{
 		CombatComponent->TargetStop();
+	}*/
+}
+
+void AMyCharacter::SetOverlappingActor(AActor* Actor)
+{
+	if (OverlappingActor)
+	{
+		if (IInteractInterface* InteraceActor = Cast<IInteractInterface>(OverlappingActor))
+		{
+			InteraceActor->SetInteractEffectVisibility(false);
+		}
+	}
+	OverlappingActor = Actor;// 该变量改变后会在客户端执行OnRep_OverlappingActor
+	// OnRep_OverlappingActor仅会在OwnerClient进行，下面是为了让Server控制的角色有同样的逻辑
+	if (OverlappingActor && IsLocallyControlled())
+	{
+		if (IInteractInterface* InteraceActor = Cast<IInteractInterface>(OverlappingActor))
+		{
+			InteraceActor->SetInteractEffectVisibility(true);
+		}
+	}
+}
+
+void AMyCharacter::OnRep_OverlappingActor(AActor* LastActor)
+{
+	if (IInteractInterface* InteraceActor = Cast<IInteractInterface>(OverlappingActor))
+	{
+		InteraceActor->SetInteractEffectVisibility(true);
+	}
+	if (IInteractInterface* LastInteraceActor = Cast<IInteractInterface>(LastActor))
+	{
+		LastInteraceActor->SetInteractEffectVisibility(false);
 	}
 }
 
 void AMyCharacter::InteractStart()
 {
+	if (bDisableGameplay) return;
 	IInteractInterface* InteraceActor = OverlappingActor ? Cast<IInteractInterface>(OverlappingActor) : nullptr;
 	if (InteraceActor)
 	{
@@ -297,6 +507,7 @@ void AMyCharacter::InteractStart()
 
 void AMyCharacter::InteractStop()
 {
+	if (bDisableGameplay) return;
 	IInteractInterface* InteraceActor = OverlappingActor ? Cast<IInteractInterface>(OverlappingActor) : nullptr;
 	if (InteraceActor)
 	{
@@ -304,69 +515,43 @@ void AMyCharacter::InteractStop()
 	}
 }
 
-void AMyCharacter::SetOverlappingActor(AActor* Actor)
+void AMyCharacter::ReloadStart()
 {
-	// 该函数仅会在Server调用， Weapon只会在Server中Overlap
-	if (OverlappingActor)
+	if (bDisableGameplay) return;
+	if (CombatComponent)
 	{
-		if (IInteractInterface* InteraceActor = Cast<IInteractInterface>(OverlappingActor))
-		{
-			InteraceActor->SetInteractWidgetVisibility(false);
-		}
-	}
-	OverlappingActor = Actor;// 该变量改变后会在客户端执行OnRep_OverlappingActor
-	// OnRep_OverlappingActor仅会在Client进行，下面是为了让Server控制的角色有同样的逻辑
-	if (IsLocallyControlled() && OverlappingActor)
-	{
-		if (IInteractInterface* InteraceActor = Cast<IInteractInterface>(OverlappingActor))
-		{
-			InteraceActor->SetInteractWidgetVisibility(true);
-		}
+		CombatComponent->ReloadStart();
 	}
 }
 
-void AMyCharacter::Elim()
+void AMyCharacter::ReloadStop()
 {
-	
-}
-
-void AMyCharacter::OnRep_OverlappingActor(AActor* LastActor)
-{
-	if (IInteractInterface* InteraceActor = Cast<IInteractInterface>(OverlappingActor))
+	if (bDisableGameplay) return;
+	if (CombatComponent)
 	{
-		InteraceActor->SetInteractWidgetVisibility(true);
-	}
-	if (IInteractInterface* LastInteraceActor = Cast<IInteractInterface>(LastActor))
-	{
-		LastInteraceActor->SetInteractWidgetVisibility(false);
+		CombatComponent->ReloadStop();
 	}
 }
 
-void AMyCharacter::EquipWeaponStart()
-{
-	if (!CombatComponent)
-	{
-		return;
-	}
-
-	// Equip只在Server进行，通过复制变量通知Client
-	if (HasAuthority())
-	{
-		CombatComponent->EquipWeaponStart(Cast<AWeapon>(OverlappingActor));
-	}
-	else
-	{
-		ServerEquipWeaponStart();
-	}
-}
-
-void AMyCharacter::EquipWeaponStop()
+void AMyCharacter::ThrowWeaponStart()
 {
 }
 
-void AMyCharacter::ServerEquipWeaponStart_Implementation()
+void AMyCharacter::ThrowWeaponStop()
 {
-	EquipWeaponStart();
+	if (IsWeaponEquipped())
+	{
+		CombatComponent->ThrowWeapon();
+	}
+}
+
+void AMyCharacter::EquipWeapon(float Value)
+{
+	if (bDisableGameplay || FMath::IsWithin(Value, -0.6f, 0.6f)) return;
+	if (CombatComponent)
+	{
+		CombatComponent->EquipWeapon(Value > 0.f ? 1 : (Value < 0.f ? -1 : 0)); 
+	}
 }
 
 void AMyCharacter::ServerSetIsAiming_Implementation(bool bAiming)
@@ -386,37 +571,9 @@ bool AMyCharacter::IsWeaponEquipped()
 
 void AMyCharacter::MulticastHit_Implementation()
 {
-	PlayHitReactMontage();
-}
-
-bool AMyCharacter::IsAiming()
-{
-	return CombatComponent && CombatComponent->bIsAiming;
-}
-
-bool AMyCharacter::IsAlive()
-{
-	return AttributeComponent && AttributeComponent->IsAlive();
-}
-
-void AMyCharacter::HideCharacterIfCameraClose()
-{
-	if (!IsLocallyControlled()) return;
-	if ((FollowCamera->GetComponentLocation() - GetActorLocation()).Size() < CameraThreshold)
+	if (ShouldMulticastEffect())
 	{
-		GetMesh()->SetVisibility(false);
-		if (CombatComponent && CombatComponent->EquippedWeapon && CombatComponent->EquippedWeapon->GetMesh())
-		{
-			CombatComponent->EquippedWeapon->GetMesh()->bOwnerNoSee = true;
-		}
-	}
-	else
-	{
-		GetMesh()->SetVisibility(true);
-		if (CombatComponent && CombatComponent->EquippedWeapon && CombatComponent->EquippedWeapon->GetMesh())
-		{
-			CombatComponent->EquippedWeapon->GetMesh()->bOwnerNoSee = false;
-		}
+		PlayHitReactMontage();
 	}
 }
 
@@ -434,9 +591,12 @@ void AMyCharacter::PlayHitReactMontage()
 	}
 }
 
-FVector AMyCharacter::GetHitTarget() const
+void AMyCharacter::UpdateHUD(AMyHUD* PlayerHUD)
 {
-	return CombatComponent ? CombatComponent->MyHitTarget : FVector();
+	if (AttributeComponent)
+	{
+		AttributeComponent->UpdateHUD(PlayerHUD);
+	}
 }
 
 void AMyCharacter::SimProxiesTurn()
@@ -449,10 +609,36 @@ void AMyCharacter::SimProxiesTurn()
 	}
 }
 
+bool AMyCharacter::IsAlive()
+{
+	return AttributeComponent && AttributeComponent->IsAlive();
+}
+
 void AMyCharacter::ReceiveDamage(AActor* DamageActor, float Damage, const UDamageType* DamageType, AController* InstigatorController, AActor* DamageCauser)
 {
 	if (AttributeComponent)
 	{
 		AttributeComponent->ReceiveDamage(DamageActor, Damage, DamageType, InstigatorController, DamageCauser);
+	}
+}
+
+void AMyCharacter::Elim()
+{
+
+}
+
+void AMyCharacter::SimulateElim()
+{
+	if (AttributeComponent && AttributeComponent->ElimMontage)
+	{
+		PlayAnimMontage(AttributeComponent->ElimMontage);
+	}
+}
+
+void AMyCharacter::KillReward()
+{
+	if (IsWeaponEquipped())
+	{
+		CombatComponent->EquippedWeapon->Drop();
 	}
 }
