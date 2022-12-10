@@ -10,9 +10,6 @@
 class UButton;
 class UMultiplayerSessionsSubsystem;
 
-/**
- * 
- */
 UCLASS()
 class MULTIPLAYERSESSIONS_API UMenu : public UUserWidget
 {
@@ -66,6 +63,9 @@ private:
 	UMultiplayerSessionsSubsystem* MultiplayerSessionsSubsystem;
 	
 	int32 NumPublicConnections{ 10 };
+
+	// 选择同样MatchType的玩家会进入同一个游戏中,这个字符串只是搜索Session用的，并不代表实际的游戏模式
+	UPROPERTY(BlueprintReadWrite, meta = (AllowPrivateAccess = "true"))
 	FString MatchType{ TEXT("FreeForAll") };
 	FString PathToLobby{ TEXT("") };
 };

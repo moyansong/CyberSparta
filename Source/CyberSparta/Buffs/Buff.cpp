@@ -127,8 +127,6 @@ void ABuff::OnSphereEndOverlap(UPrimitiveComponent* OverlappedComponent, AActor*
 
 void ABuff::InteractStart(AActor* InteractActor)
 {
-	if (!InteractActor) return;
-
 	AMyCharacter* InteractCharacter = Cast<AMyCharacter>(InteractActor);
 	if (InteractCharacter)
 	{
@@ -138,8 +136,6 @@ void ABuff::InteractStart(AActor* InteractActor)
 
 void ABuff::InteractStop(AActor* InteractActor)
 {
-	if (!InteractActor) return;
-
 	AMyCharacter* InteractCharacter = Cast<AMyCharacter>(InteractActor);
 	if (InteractCharacter && InteractCharacter->GetBuffComponent())
 	{

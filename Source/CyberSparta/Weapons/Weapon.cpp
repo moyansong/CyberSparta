@@ -9,6 +9,7 @@
 #include "Animation/AnimationAsset.h"
 #include "../CyberSparta.h"
 #include "../Characters/MyCharacter.h"
+#include "../PlayerController/MyPlayerController.h"
 #include "../Components/CombatComponent.h"
 
 AWeapon::AWeapon()
@@ -71,14 +72,17 @@ void AWeapon::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeP
 	Super::GetLifetimeReplicatedProps(OutLifetimeProps);
 
 	DOREPLIFETIME(AWeapon, WeaponState);
-	DOREPLIFETIME(AWeapon, Ammo);
+	DOREPLIFETIME(AWeapon, Ammo); 
+	DOREPLIFETIME_CONDITION(AWeapon, bUseServerSideRewind, COND_OwnerOnly);
 }
 
 void AWeapon::OnRep_Owner()
 {
 	Super::OnRep_Owner();
 
-	MyCharacter = GetOwner() ? Cast<AMyCharacter>(GetOwner()) : nullptr;
+	// MyCharacter 和 MyController都是本地变量，以Owner为准
+	MyCharacter = Cast<AMyCharacter>(GetOwner());
+	if (MyCharacter) MyController = Cast<AMyPlayerController>(MyCharacter->GetController());
 }
 
 void AWeapon::SetSphereCollision(bool bCanOverlapWithPawn)
@@ -98,24 +102,24 @@ void AWeapon::SetSphereCollision(bool bCanOverlapWithPawn)
 	}
 }
 
-void AWeapon::SetMeshSimulatePhysics(bool bSimulatePhysics)
+void AWeapon::SetMeshSimulatePhysics(UPrimitiveComponent* Mesh, bool bSimulatePhysics)
 {
-	if (!MeshComponent) return;
+	if (!Mesh) return;
 
 	if (bSimulatePhysics)
 	{
-		MeshComponent->SetSimulatePhysics(true);
-		MeshComponent->SetEnableGravity(true);	// 如果Mesh穿过障碍物，很有可能是障碍物的问题，可能是太薄，或者是障碍物地形也有可能穿过
-		MeshComponent->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
-		MeshComponent->SetCollisionResponseToAllChannels(ECollisionResponse::ECR_Block);
-		MeshComponent->SetCollisionResponseToChannel(ECollisionChannel::ECC_Pawn, ECollisionResponse::ECR_Ignore);
-		MeshComponent->SetCollisionResponseToChannel(ECollisionChannel::ECC_Camera, ECollisionResponse::ECR_Ignore);
+		Mesh->SetSimulatePhysics(true);
+		Mesh->SetEnableGravity(true);	// 如果Mesh穿过障碍物，很有可能是障碍物的问题，可能是太薄，或者是障碍物地形也有可能穿过
+		Mesh->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
+		Mesh->SetCollisionResponseToAllChannels(ECollisionResponse::ECR_Block);
+		Mesh->SetCollisionResponseToChannel(ECollisionChannel::ECC_Pawn, ECollisionResponse::ECR_Ignore);
+		Mesh->SetCollisionResponseToChannel(ECollisionChannel::ECC_Camera, ECollisionResponse::ECR_Ignore);
 	}
 	else
 	{
-		MeshComponent->SetSimulatePhysics(false);
-		MeshComponent->SetEnableGravity(false);
-		MeshComponent->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+		Mesh->SetSimulatePhysics(false);
+		Mesh->SetEnableGravity(false);
+		Mesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 	}
 }
 
@@ -139,8 +143,6 @@ void AWeapon::OnSphereEndOverlap(UPrimitiveComponent* OverlappedComponent, AActo
 
 void AWeapon::InteractStart(AActor* InteractActor)
 {
-	if (!InteractActor) return;
-
 	AMyCharacter* InteractCharacter = Cast<AMyCharacter>(InteractActor);
 	if (InteractCharacter)
 	{
@@ -150,8 +152,6 @@ void AWeapon::InteractStart(AActor* InteractActor)
 
 void AWeapon::InteractStop(AActor* InteractActor)
 {
-	if (!InteractActor) return;
-
 	AMyCharacter* InteractCharacter = Cast<AMyCharacter>(InteractActor);
 	if (InteractCharacter)
 	{
@@ -164,7 +164,6 @@ void AWeapon::Pickup(AMyCharacter* PickCharacter)
 	if (PickCharacter && PickCharacter->GetCombatComponent())
 	{
 		PickCharacter->GetCombatComponent()->AddWeapon(this);
-		MyCharacter = PickCharacter;
 	}
 }
 
@@ -212,11 +211,6 @@ void AWeapon::FireStop()
 {
 }
 
-void AWeapon::LocalFire()
-{
-	//SpendRound();// 如果Ammo是复制的则不需要
-}
-
 void AWeapon::SimulateFire()
 {
 	if (FireAnimation && MeshComponent)
@@ -237,7 +231,17 @@ void AWeapon::Drop()
 	MeshComponent->DetachFromComponent(DetachRules);
 	SetOwner(nullptr);
 	MyCharacter = nullptr;
+	MyController = nullptr;
 	Ammo = MaxAmmo;
+}
+
+void AWeapon::Throw(FVector ThrowDirection, float Force)
+{
+	Drop();
+	if (MeshComponent)
+	{
+		MeshComponent->AddImpulseAtLocation(ThrowDirection * Force, GetActorLocation());
+	}
 }
 
 void AWeapon::SetWeaponState(EWeaponState State)
@@ -271,40 +275,43 @@ void AWeapon::OnStateChanged()
 
 void AWeapon::OnEquipped()
 {
-	if (!MeshComponent || !SphereComponent) return;
+	if (!SphereComponent || !MeshComponent) return;
 
 	InitialLifeSpan = 0.f;
 	SetHUDWeaponAmmo();
-	SetInteractEffectVisibility(false);
 	SetSphereCollision(false);
-	SetMeshSimulatePhysics(false);
-	MeshComponent->SetRenderCustomDepth(false);
+	SetInteractEffectVisibility(false);
 	MeshComponent->SetVisibility(true);
+	MeshComponent->SetRenderCustomDepth(false);
+	SetMeshSimulatePhysics(MeshComponent, false);
 }
 
 void AWeapon::OnDropped()
 {
-	if (!MeshComponent || !SphereComponent) return;
+	if (!SphereComponent || !MeshComponent) return;
 
 	if (HasAuthority())
 	{
 		SphereComponent->SetCollisionEnabled(ECollisionEnabled::QueryOnly);
 		SphereComponent->SetCollisionResponseToChannel(ECollisionChannel::ECC_Pawn, ECollisionResponse::ECR_Overlap);
 	}
-	SetMeshSimulatePhysics(true);
-	MeshComponent->SetRenderCustomDepth(true);
+	MeshComponent->SetVisibility(true);
+	MeshComponent->SetRenderCustomDepth(true); 
+	SetMeshSimulatePhysics(MeshComponent, true);
 }
 
 void AWeapon::OnIdled()
 {
-	if (!MeshComponent || !SphereComponent) return;
-	
+	if (!SphereComponent || !MeshComponent) return;
+
 	InitialLifeSpan = 0.f;
-	SetInteractEffectVisibility(false);
+	MyCharacter = MyCharacter ? MyCharacter : Cast<AMyCharacter>(GetOwner());
+	if (MyCharacter) MyController = MyController ? MyController : Cast<AMyPlayerController>(MyCharacter->GetController());
 	SetSphereCollision(false);
-	SetMeshSimulatePhysics(false);
-	MeshComponent->SetRenderCustomDepth(false);
+	SetInteractEffectVisibility(false);
 	MeshComponent->SetVisibility(false);
+	MeshComponent->SetRenderCustomDepth(false);
+	SetMeshSimulatePhysics(MeshComponent, false);
 }
 
 void AWeapon::SetAmmo(int32 AmmoToSet)
@@ -318,7 +325,10 @@ void AWeapon::SetAmmo(int32 AmmoToSet)
 
 void AWeapon::SpendRound()
 {
-	SetAmmo(Ammo - AmmoCostPerFire);
+	if (HasAuthority())
+	{
+		SetAmmo(Ammo - AmmoCostPerFire);
+	}
 	//if (HasAuthority())
 	//{
 	//	ClientUpdateAmmo(Ammo);// 不复制Ammo，用RPC更新Ammo
@@ -334,7 +344,7 @@ void AWeapon::SetHUDWeaponAmmo()
 	MyCharacter = MyCharacter ? MyCharacter : Cast<AMyCharacter>(GetOwner());
 	if (MyCharacter && MyCharacter->GetCombatComponent())
 	{
-		MyCharacter->GetCombatComponent()->SetHUDWeaponAmmo();
+		MyCharacter->GetCombatComponent()->SetHUDWeaponAmmo(); 
 	}
 }
 

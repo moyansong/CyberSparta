@@ -27,7 +27,7 @@ public:
 
 	void SetHandTransform(float DeltaTime);
 
-	void ChangeAnimation();
+	void OnWeaponEquipped();
 
 private:
 //------------------------------------------Parameters----------------------------------------------------------
@@ -88,5 +88,6 @@ private:
 	UPROPERTY(BlueprintReadOnly, Category = Movement, meta = (AllowPrivateAccess = "true"))
 	bool bIsAlive;
 //------------------------------------------Animations----------------------------------------------------------
+	//UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Animation, meta = (AllowPrivateAccess = "true"))
 	
 };

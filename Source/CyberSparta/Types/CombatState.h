@@ -5,6 +5,6 @@ enum class ECombatState : uint8
 {
 	ECS_Idle UMETA(DisplayName = "Idle"),
 	ECS_Firing UMETA(DisplayName = "Firing"),
-	ECS_Reloading UMETA(DisplayName = "Fire"),
+	ECS_Reloading UMETA(DisplayName = "Reloading"),
 	ECS_MAX UMETA(DisplayName = "DefaultMAX")
 };

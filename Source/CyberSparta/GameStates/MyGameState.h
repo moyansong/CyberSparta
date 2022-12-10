@@ -4,6 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "GameFramework/GameState.h"
+#include "../Types/Team.h"
 #include "MyGameState.generated.h"
 
 class AMyPlayerState;
@@ -19,9 +20,24 @@ public:
 
 	void UpdateTopScore(AMyPlayerState* ScoringPlayerState);
 
+	void UpdateTeamScore(ETeam Team);
+
 //-----------------------------------------------Parameters-----------------------------------------------------
 	UPROPERTY(Replicated)
 	TArray<AMyPlayerState*> TopScoringPlayers;
 
 	float TopScore = 0.f;
+
+	TArray<AMyPlayerState*> BlueTeam;
+	TArray<AMyPlayerState*> RedTeam;
+
+	UPROPERTY(ReplicatedUsing = OnRep_BlueTeamScore)
+	float BlueTeamScore = 0.f;
+	UFUNCTION()
+	void OnRep_BlueTeamScore();
+
+	UPROPERTY(ReplicatedUsing = OnRep_RedTeamScore)
+	float RedTeamScore = 0.f;
+	UFUNCTION()
+	void OnRep_RedTeamScore();
 };

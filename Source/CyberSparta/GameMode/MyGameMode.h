@@ -8,6 +8,8 @@
 
 class AMyCharacter;
 class AMyPlayerController;
+class AMyPlayerState;
+class AMyGameState;
 
 namespace MatchState
 {
@@ -29,10 +31,15 @@ public:
 	virtual void Tick(float DeltaTime) override;
 
 	// 玩家淘汰
-	virtual void PlayerEliminated(AMyCharacter* ElimmedCharacter, AMyPlayerController* VictimController, AMyPlayerController* AttackController);
+	virtual void PlayerEliminated(AMyCharacter* ElimmedCharacter, AMyPlayerController* AttackerController, AMyPlayerController* VictimController);
 
 	// 重生
 	virtual void RequestRespawn(ACharacter* ElimmedCharacter, AController* ElimmedController);
+
+	void PlayerLeftGame(AMyPlayerState* PlayerState);
+
+	void UpdatePlayerState(AMyPlayerState* AttackerPlayerState, AMyPlayerState* VictimPlayerState);
+	void UpdateGameState(AMyPlayerState* AttackerPlayerState, AMyPlayerState* VictimPlayerState);
 
 	FORCEINLINE float GetCountdownTime() const { return CountdownTime; }
 //-----------------------------------------------Parameters-----------------------------------------------------
@@ -46,7 +53,14 @@ public:
 	float SettlementTime = 30.f; // 结算面板显示的时间
 
 	float LevelStartingTime = 0.f; // 进入Level花的时间，进入Level后开始Warmup
-private:
+
+protected:
+	UPROPERTY()
+	AMyGameState* MyGameState;
+
 	UPROPERTY(EditDefaultsOnly)
 	float CountdownTime = 0.f;
+
+	UPROPERTY(EditAnywhere, Category = Parameter)
+	bool bIsTeamMatch = false;
 };

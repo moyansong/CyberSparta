@@ -14,7 +14,7 @@ class UWeaponWidget;
 class UGameStateWidget;
 class UAnnouncementWidget;
 class USettlementWidget;
-
+class UKillAnnouncementWidget;
 
 USTRUCT(BlueprintType)
 struct FHUDPackage
@@ -35,9 +35,12 @@ class CYBERSPARTA_API AMyHUD : public AHUD
 {
 	GENERATED_BODY()
 
+//------------------------------------------------Functions--------------------------------------------------------------
 protected:
 	virtual void BeginPlay() override;
 
+	UFUNCTION()
+	void KillAnnouncementTimerFinished(UKillAnnouncementWidget* WidgetToRemove);
 public:
 	// 每一帧都会调用
 	virtual void DrawHUD() override;
@@ -48,7 +51,6 @@ public:
 	UFUNCTION(BlueprintCallable)
 	void RemoveWidget(UUserWidget* Widget);
 
-//------------------------------------------------Functions--------------------------------------------------------------
 	FORCEINLINE void SetHUDPackage(const FHUDPackage& Package) { HUDPackage = Package; }
 
 	void CreateInProgressWidget();
@@ -57,6 +59,8 @@ public:
 	void CreateMetchStartWidget();
 
 	void CreateSettlementWidget();
+
+	void AddKillAnnouncement(FString AttackerName, FString VictimName);
 //------------------------------------------------Parameters--------------------------------------------------------------
 	UPROPERTY()
 	AMyPlayerController* MyController;
@@ -84,8 +88,14 @@ public:
 	UPROPERTY(EditAnywhere, Category = Game)
 	TSubclassOf<UUserWidget> SettlementWidgetClass;
 	UPROPERTY()
-	USettlementWidget* SettlementWidget;
+	USettlementWidget* SettlementWidget; 
 
+	UPROPERTY(EditAnywhere, Category = Game)
+	TSubclassOf<UUserWidget> KillAnnouncementWidgetClass;
+	UPROPERTY()
+	UKillAnnouncementWidget* KillAnnouncementWidget;
+
+	TArray<UKillAnnouncementWidget*> KillAnnouncementWidgets;
 private:
 	FHUDPackage HUDPackage;
 
@@ -93,4 +103,7 @@ private:
 
 	UPROPERTY(EditAnywhere)
 	float MaxCrosshairsSpread = 15.f;
+
+	UPROPERTY(EditAnywhere, Category = Parameter)
+	float KillAnnouncementDuration = 3.f;
 };

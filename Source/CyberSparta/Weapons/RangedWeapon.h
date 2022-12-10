@@ -28,7 +28,8 @@ public:
 
 	virtual void SimulateFire() override;
 
-	virtual void SpawnProjectile(const FVector& HitTarget);
+	// bProjectileUseServerSideRewind = true表示子弹需要向Server报告击中结果，由Server检查
+	virtual void SpawnProjectile(const FVector& HitTarget, bool bProjectileUseServerSideRewind, bool bProjectileReplicates = true);
 
 	virtual void SpawnShellCase();
 
@@ -43,10 +44,12 @@ public:
 
 	virtual	void Equip() override;
 
+	AProjectile* GetDefaultProjectile();
+
 protected:
 //--------------------------------------------Parameters---------------------------------------------------------
 	UPROPERTY(EditAnywhere, Category = Projectile)
-	TSubclassOf<AProjectile> ProjectileClass;
+	TSubclassOf<AProjectile> ProjectileClass;	// 在Server上产生的子弹，需要复制
 
 	UPROPERTY(EditAnywhere, Category = Projectile)
 	TSubclassOf<AShellCase> ShellCaseClass;

@@ -13,6 +13,8 @@ class AMyPlayerController;
 class AMyHUD;
 class UAnimMontage;
 class UAttributeWidget;
+class AMyGameMode;
+class AMyPlayerState;
 
 UCLASS( ClassGroup=(Custom), meta=(BlueprintSpawnableComponent) )
 class CYBERSPARTA_API UAttributeComponent : public UActorComponent
@@ -28,6 +30,17 @@ public:
 	virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
 
 //------------------------------------------------Functions------------------------------------------------------------
+	float CalculateReceivedDamage(AActor* DamageActor, float Damage, const UDamageType* DamageType, AController* InstigatorController, AActor* DamageCauser);
+	// 这个函数只会在Server调用
+	UFUNCTION()
+	void ReceiveDamage(AActor* DamageActor, float Damage, const UDamageType* DamageType, AController* InstigatorController, AActor* DamageCauser);
+	
+	// 在Server和Client都会调用
+	UFUNCTION()
+	void Eliminate(AActor* DamageActor, AController* InstigatorController, AActor* DamageCauser);
+
+	void EliminateTimerFinished();
+//------------------------------------------------Set&&Get------------------------------------------------------------
 	FORCEINLINE float GetHealth() const { return Health; }
 	FORCEINLINE float GetMaxHealth() const { return MaxHealth; }
 	void SetHealth(float NewHealth);
@@ -37,27 +50,20 @@ public:
 	FORCEINLINE float GetMaxShield() const { return MaxShield; }
 	void SetShield(float NewShield);
 	void IncreaseShield(float ShieldIncrement);
-
-	// 这个函数只会在Server调用
-	UFUNCTION()
-	void ReceiveDamage(AActor* DamageActor, float Damage, const UDamageType* DamageType, AController* InstigatorController, AActor* DamageCauser);
-
+	
+	bool IsHUDVaild();
 	void UpdateHUD(AMyHUD* PlayerHUD);
 	void SetHUDHealth();
 	void SetHUDShield();
 	void SetHUDScore(float Score);
 	void SetHUDDefeats(int32 Defeats);
 
+	void SetEliminatedCollision();
+
 	UFUNCTION(BlueprintCallable)
 	bool IsAlive();
 
-	// 在Server和Client都会调用
-	UFUNCTION()
-	void Elim(AActor* DamageActor, AController* InstigatorController, AActor* DamageCauser);
-
-	void ElimTimerFinished();
-
-	bool IsHUDVaild();
+	bool IsTeammate(AController* OtherPlayerController);
 
 private:
 //------------------------------------------------Parameters--------------------------------------------------------------
@@ -69,6 +75,10 @@ private:
 	AMyHUD* MyHUD;
 	UPROPERTY()
 	UAttributeWidget* AttributeWidget;
+	UPROPERTY()
+	AMyGameMode* MyGameMode;
+	UPROPERTY()
+	AMyPlayerState* MyPlayerState;
 	
 	UPROPERTY(EditAnywhere, Category = Attribute)
 	float MaxHealth = 100.f;
@@ -86,14 +96,17 @@ private:
 	UFUNCTION()
 	void OnRep_Shield(float LastShield);
 
-	FTimerHandle ElimTimer;
+	FTimerHandle EliminateTimer;
 
-	UPROPERTY(EditAnywhere)
-	float ElimDelay = 3.f;
+	UPROPERTY(EditAnywhere, Category = Parameter)
+	float EliminateDelay = 3.f;
+
+	UPROPERTY(EditAnywhere, Category = Parameter)
+	bool bUseTeammateDamage = false;
 
 	UPROPERTY(BlueprintAssignable)
 	FOnHealthChangedSignature OnHealthChanged;
 //------------------------------------------------Animations--------------------------------------------------------------
 	UPROPERTY(EditAnywhere, Category = Animations)
-	UAnimMontage* ElimMontage;
+	UAnimMontage* EliminateMontage;
 };

@@ -6,6 +6,7 @@
 #include "GameFramework/Actor.h"
 #include "../Interfaces/InteractInterface.h"
 #include "../Weapons/WeaponTypes.h"
+#include "../Types/Team.h"
 #include "Weapon.generated.h"
 
 class USkeletalMeshComponent;
@@ -15,12 +16,16 @@ class UAnimationAsset;
 class UCombatComponent;
 class UTexture2D;
 class AMyCharacter;
+class AMyPlayerController;
 class SoundCue;
+class UPrimitiveComponent;
+class UAnimInstance;
+class UParticleSystem;
 
 UENUM(BlueprintType)
 enum class EWeaponState : uint8
 {
-	EWS_Initial UMETA(DisplayName = "Initial"),// 枪刚初始化在世界里
+	EWS_Initial UMETA(DisplayName = "Initial"),// 刚初始化在世界里
 	EWS_Equipped UMETA(DisplayName = "Equipped"),// 正在使用的武器
 	EWS_Dropped UMETA(DisplayName = "Dropped"),// 被人丢了
 	EWS_Idle UMETA(DisplayName = "Idle"),// 在人身上但是现在不在用
@@ -59,7 +64,7 @@ public:
 	UAnimationAsset* FireAnimation; // 武器自己开火的动画
 
 	UPROPERTY(EditDefaultsOnly, Category = Montage)
-	UAnimMontage* FireMontage; // 角色开火的蒙太奇
+	UAnimMontage* CharacterFireMontage; // 角色开火的蒙太奇
 
 	UPROPERTY(EditDefaultsOnly, Category = Montage)
 	UAnimMontage* HitReactMontage;
@@ -69,22 +74,24 @@ public:
 
 	UPROPERTY(EditDefaultsOnly, Category = Montage)
 	UAnimMontage* ReloadMontage; // 角色换弹的蒙太奇
-//----------------------------------------------Sounds-------------------------------------------------------------
+
+	UPROPERTY(EditDefaultsOnly, Category = Montage)
+	UAnimMontage* EquipMontage; // 装备该武器的蒙太奇
+
+	UPROPERTY(EditAnywhere, Category = Animation)
+	TSubclassOf<UAnimInstance> CharacterAnimationClass;
 	
 //---------------------------------------------Functions-------------------------------------------------------------
 	UFUNCTION()
 	virtual bool CanFire();
 	
-	// Fire只会在Server调用，SimulateFire会在Server和Client调用
+	// Fire在Server和Client都会调用，但保证在每个端只调用一次
 	UFUNCTION()
 	virtual void FireStart(const FVector& HitTarget);
 	UFUNCTION()
 	virtual void FireStop();
 
 	UFUNCTION()
-	virtual void LocalFire();
-
-	UFUNCTION(BlueprintCallable)
 	virtual void SimulateFire();
 
 	virtual void InteractStart(AActor* InteractActor) override;
@@ -108,17 +115,23 @@ public:
 	UFUNCTION()
 	virtual	void Equip();
 
-	// 丢弃武器
 	UFUNCTION()
-	virtual void Drop();
+	virtual void Drop(); // 武器掉落
+
+	UFUNCTION()
+	virtual void Throw(FVector ThrowDirection, float Force); // 扔武器
+
+	// 武器状态改变时其应发生的事
+	UFUNCTION()
+	virtual void OnStateChanged();
 
 	// 设置各种状态下武器的属性
 	UFUNCTION()
-	void OnEquipped();
+	virtual void OnEquipped();
 	UFUNCTION()
-	void OnDropped();
+	virtual void OnDropped();
 	UFUNCTION()
-	void OnIdled();
+	virtual void OnIdled();
 
 	void SpendRound();
 
@@ -131,16 +144,14 @@ public:
 
 	void SetWeaponState(EWeaponState State);
 
-	// 武器状态改变时其应发生的事
-	UFUNCTION()
-	virtual void OnStateChanged();
-
 	UFUNCTION(BlueprintCallable)
 	void SetSphereCollision(bool bCanOverlapWithPawn);
 
-	void SetMeshSimulatePhysics(bool bSimulatePhysics);
+	void SetMeshSimulatePhysics(UPrimitiveComponent* Mesh, bool bSimulatePhysics);
 
 	FORCEINLINE USkeletalMeshComponent* GetMesh() const { return MeshComponent; }
+	FORCEINLINE USphereComponent* GetSphere() const { return SphereComponent; }
+	FORCEINLINE UWidgetComponent* GetPickupWidget() const { return PickupWidgetComponent; }
 
 	FORCEINLINE bool IsRangedWeapon() const { return bIsRangedWeapon; }
 
@@ -149,6 +160,14 @@ public:
 	FORCEINLINE bool CanAutomaticFire() const { return bCanAutomaticFire; }
 
 	FORCEINLINE bool CanReload() const { return bCanReload; }
+
+	FORCEINLINE bool UseServerSideRewind() const { return bUseServerSideRewind; }
+
+	FORCEINLINE bool UseLeftHandIK() const { return bUseLeftHandIK; }
+
+	FORCEINLINE EWeaponType GetWeaponType() const { return WeaponType; }
+
+	FORCEINLINE ETeam GetTeam() const { return Team; }
 
 protected:
 	virtual void BeginPlay() override;
@@ -166,9 +185,14 @@ protected:
 //--------------------------------------------Parameters-------------------------------------------------------------
 	UPROPERTY()
 	AMyCharacter* MyCharacter;
+	UPROPERTY()
+	AMyPlayerController* MyController;
 
 	UPROPERTY(EditAnywhere, Category = Parameter)
 	EWeaponType WeaponType;
+
+	UPROPERTY(EditAnywhere, Category = Parameter)
+	ETeam Team = ETeam::ET_NoTeam;
 	
 	UPROPERTY(ReplicatedUsing = OnRep_WeaponState, VisibleAnywhere, Category = Parameter)
 	EWeaponState WeaponState;
@@ -179,6 +203,9 @@ protected:
 	bool bIsRangedWeapon = true;
 
 	UPROPERTY(EditAnywhere, Category = Parameter)
+	bool bUseLeftHandIK = true;
+
+	UPROPERTY(EditAnywhere, Category = Parameter)
 	float FireDelay = 0.1f;
 
 	UPROPERTY(EditAnywhere, Category = Parameter)
@@ -186,6 +213,9 @@ protected:
 
 	UPROPERTY(EditAnywhere, Category = Parameter)
 	bool bCanReload = true;
+
+	UPROPERTY(Replicated, EditAnywhere, Category = Parameter)
+	bool bUseServerSideRewind = true;// 范围伤害武器和射速慢或子弹速度慢的武器应设为false
 
 	// 还未收到的Server发来的更新Ammo的RPC数
 	int32 AmmoSequence = 0;
@@ -213,5 +243,4 @@ private:
 
 	UPROPERTY(VisibleAnywhere, Category = "Components")
 	UWidgetComponent* PickupWidgetComponent;
-
 };

@@ -38,7 +38,11 @@ void AProjectile::BeginPlay()
 {
 	Super::BeginPlay();
 	
-	if (HasAuthority())
+	if (!bReplicates)
+	{
+		CollisionComponent->OnComponentHit.AddDynamic(this, &AProjectile::OnHit);
+	}
+	else if (HasAuthority())
 	{
 		CollisionComponent->OnComponentHit.AddDynamic(this, &AProjectile::OnHit);
 	}
@@ -79,15 +83,23 @@ void AProjectile::Tick(float DeltaTime)
 
 void AProjectile::OnHit(UPrimitiveComponent* HitComp, AActor* OtherActor, UPrimitiveComponent* OtherComp, FVector NormalImpulse, const FHitResult& Hit)
 {
-	if (OtherActor == GetOwner()) return;
-	MulticastHit(); 
-
-	AMyCharacter* MyCharacter = Cast<AMyCharacter>(OtherActor);
-	if (MyCharacter && bShouldSimulateHit)
+	AMyCharacter* HitCharacter = Cast<AMyCharacter>(OtherActor);
+	if (OtherActor == GetOwner() || (HitCharacter && !HitCharacter->IsAlive()))
 	{
-		MyCharacter->MulticastHit();
+		Destroy();
+		return;
 	}
 
+	if (bReplicates && HasAuthority())
+	{
+		MulticastHit();
+		if (HitCharacter) HitCharacter->MulticastHit(GetActorRotation(), GetActorLocation());
+	}
+	else
+	{
+		SimulateHit(); 
+		if (HitCharacter) HitCharacter->SimulateHit(GetActorRotation(), GetActorLocation());
+	}
 	ApplyDamage(HitComp, OtherActor, OtherComp, NormalImpulse, Hit);
 	Destroy();
 }
@@ -135,7 +147,8 @@ void AProjectile::Explode()
 				UDamageType::StaticClass(),
 				TArray<AActor*>(),
 				this,
-				FiringController
+				FiringController,
+				ECC_RadialDamage
 			);
 		}
 	}

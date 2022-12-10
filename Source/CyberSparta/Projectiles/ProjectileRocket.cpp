@@ -6,6 +6,7 @@
 #include "Components/BoxComponent.h"
 #include "GameFramework/ProjectileMovementComponent.h"
 #include "../CyberSparta.h"
+#include "../Characters/MyCharacter.h"
 #include "../Components/RocketMovementComponent.h"
 
 AProjectileRocket::AProjectileRocket()
@@ -22,10 +23,29 @@ AProjectileRocket::AProjectileRocket()
 	RocketMovementComponent->ProjectileGravityScale = 0.f;
 }
 
+void AProjectileRocket::OnHit(UPrimitiveComponent* HitComp, AActor* OtherActor, UPrimitiveComponent* OtherComp, FVector NormalImpulse, const FHitResult& Hit)
+{
+	AMyCharacter* HitCharacter = Cast<AMyCharacter>(OtherActor);
+	if (OtherActor == GetOwner() || (HitCharacter && !HitCharacter->IsAlive()))
+	{
+		return;
+	}
+
+	if (bReplicates && HasAuthority())
+	{
+		if (HitCharacter) HitCharacter->MulticastHit(GetActorRotation(), GetActorLocation());
+	}
+	else
+	{
+		if (HitCharacter) HitCharacter->SimulateHit(GetActorRotation(), GetActorLocation());
+	}
+	Destroy();
+}
+
 void AProjectileRocket::ApplyDamage(UPrimitiveComponent* HitComp, AActor* OtherActor, UPrimitiveComponent* OtherComp, FVector NormalImpulse, const FHitResult& Hit)
 {
 	Super::ApplyDamage(HitComp, OtherActor, OtherComp, NormalImpulse, Hit);
-
+	
 	Explode();
 }
 

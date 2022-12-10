@@ -13,6 +13,7 @@ void AMyPlayerState::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLi
 	Super::GetLifetimeReplicatedProps(OutLifetimeProps);
 
 	DOREPLIFETIME(AMyPlayerState, Defeats);
+	DOREPLIFETIME(AMyPlayerState, Team);
 }
 
 void AMyPlayerState::OnRep_Score()
@@ -68,5 +69,30 @@ void AMyPlayerState::IncreaseDefeats(int32 DefeatsIncrement)
 		{
 			MyController->SetHUDDefeats(Defeats);
 		}
+	}
+}
+
+bool AMyPlayerState::IsTeammate(AMyPlayerState* OtherPlayer)
+{
+	return Team != ETeam::ET_NoTeam && OtherPlayer && Team == OtherPlayer->GetTeam();
+}
+
+void AMyPlayerState::SetTeam(ETeam TeamToSet)
+{
+	Team = TeamToSet;
+
+	MyCharacter = MyCharacter ? MyCharacter : Cast<AMyCharacter>(GetPawn());
+	if (MyCharacter)
+	{
+		MyCharacter->SetTeam(Team);
+	}
+}
+
+void AMyPlayerState::OnRep_Team()
+{
+	MyCharacter = MyCharacter ? MyCharacter : Cast<AMyCharacter>(GetPawn());
+	if (MyCharacter)
+	{
+		MyCharacter->SetTeam(Team);
 	}
 }

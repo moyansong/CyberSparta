@@ -37,7 +37,7 @@ void AMyGameMode::OnMatchStateSet()
 		AMyPlayerController* PlayerController = Cast<AMyPlayerController>(*It);
 		if (PlayerController)
 		{
-			PlayerController->OnMatchStateSet(MatchState);
+			PlayerController->OnMatchStateSet(MatchState, bIsTeamMatch);
 		}
 	}
 }
@@ -72,21 +72,16 @@ void AMyGameMode::Tick(float DeltaTime)
 	}
 }
 
-void AMyGameMode::PlayerEliminated(AMyCharacter* ElimmedCharacter, AMyPlayerController* VictimController, AMyPlayerController* AttackController)
+void AMyGameMode::PlayerEliminated(AMyCharacter* ElimmedCharacter, AMyPlayerController* AttackerController, AMyPlayerController* VictimController)
 {
-	AMyPlayerState* AttackPlayerState = AttackController ? Cast<AMyPlayerState>(AttackController->PlayerState) : nullptr;
-	AMyPlayerState* VictimPlayerState = VictimController ? Cast<AMyPlayerState>(VictimController->PlayerState) : nullptr;
+	if (!ElimmedCharacter || !AttackerController || !VictimController) return;
+	AMyPlayerState* AttackerPlayerState = Cast<AMyPlayerState>(AttackerController->PlayerState);
+	AMyPlayerState* VictimPlayerState = Cast<AMyPlayerState>(VictimController->PlayerState);
 
-	AMyGameState* MyGameState = GetGameState<AMyGameState>();
-
-	if (AttackPlayerState && AttackPlayerState != VictimPlayerState && MyGameState)
+	if (AttackerPlayerState && VictimPlayerState)
 	{
-		AttackPlayerState->IncreaseScore(1.f);
-		MyGameState->UpdateTopScore(AttackPlayerState);
-	}
-	if (VictimPlayerState)
-	{
-		VictimPlayerState->IncreaseDefeats(1);
+		UpdatePlayerState(AttackerPlayerState, VictimPlayerState);
+		UpdateGameState(AttackerPlayerState, VictimPlayerState);
 	}
 }
 
@@ -106,4 +101,62 @@ void AMyGameMode::RequestRespawn(ACharacter* ElimmedCharacter, AController* Elim
 		// 注意：重新生成的Pawn在BeginPlay完成后才会交给Controller，所以在构造和BeginPlay里关于Controller的逻辑要写到PlayerController::OnPossess里
 		RestartPlayerAtPlayerStart(ElimmedController, PlayerStarts[Index]); 
 	}
+}
+
+void AMyGameMode::UpdatePlayerState(AMyPlayerState* AttackerPlayerState, AMyPlayerState* VictimPlayerState)
+{
+	if (!AttackerPlayerState || !VictimPlayerState) return;
+
+	if (AttackerPlayerState != VictimPlayerState)
+	{
+		AttackerPlayerState->IncreaseScore(1.f);
+	}
+	VictimPlayerState->IncreaseDefeats(1); 
+	for (FConstPlayerControllerIterator It = GetWorld()->GetPlayerControllerIterator(); It; ++It)
+	{
+		AMyPlayerController* PlayerController = Cast<AMyPlayerController>(*It);
+		if (PlayerController)
+		{
+			PlayerController->BroadcastKill(AttackerPlayerState, VictimPlayerState);
+		}
+	}
+}
+
+void AMyGameMode::UpdateGameState(AMyPlayerState* AttackerPlayerState, AMyPlayerState* VictimPlayerState)
+{
+	MyGameState = MyGameState ? MyGameState : GetGameState<AMyGameState>();
+	if (!MyGameState || !AttackerPlayerState || !VictimPlayerState) return;
+
+	TArray<AMyPlayerState*> PreLeadPlayers = MyGameState->TopScoringPlayers;
+	MyGameState->UpdateTopScore(AttackerPlayerState);
+	if (MyGameState->TopScoringPlayers.Contains(AttackerPlayerState))
+	{
+		AMyCharacter* LeadCharacter = Cast<AMyCharacter>(AttackerPlayerState->GetPawn());
+		if (LeadCharacter)
+		{
+			LeadCharacter->MulticastGainTheLead();
+		}
+	}
+	for (int32 i = 0; i < PreLeadPlayers.Num(); ++i)
+	{
+		if (!MyGameState->TopScoringPlayers.Contains(PreLeadPlayers[i]))
+		{
+			AMyCharacter* LostLeadCharacter = Cast<AMyCharacter>(PreLeadPlayers[i]->GetPawn());
+			if (LostLeadCharacter)
+			{
+				LostLeadCharacter->MulticastLostTheLead();
+			}
+		}
+	}
+}
+
+void AMyGameMode::PlayerLeftGame(AMyPlayerState* PlayerState)
+{
+	if (!PlayerState) return;
+	MyGameState = MyGameState ? MyGameState : GetGameState<AMyGameState>();
+	if (MyGameState && MyGameState->TopScoringPlayers.Contains(PlayerState))
+	{
+		MyGameState->TopScoringPlayers.Remove(PlayerState);
+	}
+	AMyCharacter* LeavingCharacter = Cast<AMyCharacter>(PlayerState->GetPawn());
 }

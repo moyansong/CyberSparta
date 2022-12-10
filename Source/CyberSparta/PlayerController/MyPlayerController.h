@@ -10,6 +10,10 @@ class AMyHUD;
 class AMyCharacter;
 class AMyPlayerState;
 class AMyGameMode;
+class UUserWidget;
+class UEscapeWidget;
+
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FHitPingDelegate, float, Ping);
 
 UCLASS()
 class CYBERSPARTA_API AMyPlayerController : public APlayerController
@@ -23,6 +27,8 @@ protected:
 	// Contoller获得一个Pawn时调用,在Server进行
 	virtual void OnPossess(APawn* InPawn) override;
 	
+	virtual void SetupInputComponent() override;
+
 	UFUNCTION(Client, Reliable)
 	void ClientOnPossess(APawn* InPawn);
 
@@ -44,6 +50,12 @@ protected:
 	UFUNCTION(Client, Reliable)
 	void ClientJoinMidgame(FName StateOfMatch, float TimeOfWarmup, float TimeOfMatch, float TimeOfStart, float TimeOfSettlement);
 
+	UFUNCTION(Server, Reliable)
+	void ServerReportPingStatus(float Ping);
+
+	UFUNCTION(Client, Reliable)
+	void ClientKillAnnouncement(AMyPlayerState* AttackerPlayerState, AMyPlayerState* VictimPlayerState);
+
 	void HandleMatchHasStarted();
 	void HandleMatchHasSettled();
 public:
@@ -59,6 +71,11 @@ public:
 	void CheckPing(float DeltaTime);
 	void HighPingWarning();
 	void StopHighPingWarning();
+
+	void ShowEscapeWidget();
+
+	// GameMode调用
+	void BroadcastKill(AMyPlayerState* AttackerPlayerState, AMyPlayerState* VictimPlayerState);
 //-----------------------------------------------Set && Get-------------------------------------------------------------
 	UFUNCTION(BlueprintCallable)
 	AMyHUD* GetMyHUD();
@@ -68,18 +85,27 @@ public:
 	void SetHUDShield();
 	void SetHUDScore(float Score);
 	void SetHUDDefeats(int32 Defeats);
+	void SetHUDBlueTeamScore(int32 BlueScore);
+	void SetHUDRedTeamScore(int32 RedScore);
 	void SetHUDWeaponAmmo();
 	void SetHUDMatchCountdown(float CountdownTime);
+	void SetHUDWinner();
 	void SetHUDAnnouncementCountdown(float CountdownTime);
 	void SetHUDSettlementCountdown(float CountdownTime);
+
+	void InitializeTeamScore();
+	void HideTeamScore();
 
 	virtual float GetServerTime();
 
 	// GameMode调用，在Server发生
-	void OnMatchStateSet(FName State);
+	void OnMatchStateSet(FName State, bool bTeamMatch = false);
 
 	void OnMatchStateChanged();
 //--------------------------------------------Parameters-------------------------------------------------------------
+	float SingleTripTime = 0.f; // 客户端发RPC到达服务器的时间
+
+	FHitPingDelegate HigPingDelegate;
 private:
 	UPROPERTY()
 	AMyCharacter* MyCharacter;
@@ -95,6 +121,19 @@ private:
 	FName MatchState;
 	UFUNCTION()
 	void OnRep_MatchState();
+
+	UPROPERTY(EditAnywhere, Category = Widget)
+	TSubclassOf<UUserWidget> EscapeWidgetClass;
+
+	UPROPERTY()
+	UEscapeWidget* EscapeWidget;
+
+	bool bEscapeWidgetOpen = false;
+
+	UPROPERTY(ReplicatedUsing = OnRep_bIsTeamMatch)
+	bool bIsTeamMatch;
+	UFUNCTION()
+	void OnRep_bIsTeamMatch();
 
 	float MatchTime = 0.f;
 	float WarmupTime = 0.f;
@@ -122,4 +161,5 @@ private:
 
 	UPROPERTY(EditAnywhere, Category = Net)
 	float HighPingThreshold = 50.f;  // ping高过这个数就算高
+
 };

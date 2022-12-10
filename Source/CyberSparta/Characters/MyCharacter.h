@@ -5,6 +5,7 @@
 #include "CoreMinimal.h"
 #include "GameFramework/Character.h"
 #include "../Types/CombatState.h"
+#include "../Types/Team.h"
 #include "MyCharacter.generated.h"
 
 class USpringArmComponent;
@@ -21,6 +22,11 @@ class UBuffComponent;
 class AMyPlayerController;
 class AMyPlayerState;
 class UBoxComponent;
+class UNiagaraComponent;
+class UNiagaraSystem;
+class UMaterialInstance;
+
+DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnLeftGame);
 
 UCLASS()
 class CYBERSPARTA_API AMyCharacter : public ACharacter
@@ -70,9 +76,6 @@ public:
 	virtual void FireStop();
 
 	UFUNCTION()
-	virtual void SetIsAiming(bool bAiming = true);
-
-	UFUNCTION()
 	void TargetStart();
 	UFUNCTION()
 	void TargetStop();
@@ -92,39 +95,49 @@ public:
 	UFUNCTION()
 	void ThrowWeaponStop();
 
-//------------------------------------------Functions----------------------------------------------------------
-	// 初始化一些数据，在Tick里执行，因为Tick在BeginPlay前
-	void Initialized();
+	UFUNCTION()
+	void RunStart();
+	UFUNCTION()
+	void RunStop();
 
-	UFUNCTION(BlueprintCallable)
-	bool IsWeaponEquipped();
+//------------------------------------------Functions---------------------------------------------------------
+	void Initialized();// 初始化一些数据，在Tick里执行，因为Tick在BeginPlay前
+	void OnControllerInitialized();// 在第一次获得Controller时执行
+	void OnPlayerStateInitialized();// 在第一次获得PlayerState时执行
 
-	UFUNCTION(BlueprintCallable)
-	bool IsAiming();
-
-	UFUNCTION(BlueprintCallable)
-	bool IsAlive();
+	void SimProxiesTurn();
 
 	UFUNCTION(BlueprintCallable)
 	void HideCharacterIfCameraClose();
 
+	UFUNCTION()
+	void SimulateHit(const FRotator& HitDirection = FRotator::ZeroRotator, const FVector& HitLocation = FVector::ZeroVector);
+
 	UFUNCTION(BlueprintCallable)
-	void PlayHitReactMontage();
+	void PlayHitReactMontage(const FRotator& HitDirection = FRotator::ZeroRotator, const FVector& HitLocation = FVector::ZeroVector);
 
 	UFUNCTION()
 	void ReceiveDamage(AActor* DamageActor, float Damage, const UDamageType* DamageType, AController* InstigatorController, AActor* DamageCauser);
 
 	// 死亡/淘汰
-	void Elim();
+	void Eliminate();
 
 	UFUNCTION()
-	void SimulateElim();
+	void SimulateEliminate();
 
 	UFUNCTION(BlueprintCallable)
 	void UpdateHUD(AMyHUD* PlayerHUD);
 
 	UFUNCTION()
 	void KillReward();
+
+	UFUNCTION()
+	void OnPingIsTooHigh(float Ping);
+
+	void LeaveGame();
+
+	UFUNCTION()
+	void OnMontageEnded(UAnimMontage* Montage, bool bInterrupted);
 
 	UFUNCTION(BlueprintCallable)
 	void Test();
@@ -138,6 +151,15 @@ public:
 	FORCEINLINE UCombatComponent* GetCombatComponent() const { return CombatComponent; }
 	FORCEINLINE UBuffComponent* GetBuffComponent() const { return BuffComponent; }
 	FORCEINLINE ULagCompensationComponent* GetLagCompensationComponent() const { return LagCompensationComponent; }
+	
+	UFUNCTION(BlueprintCallable)
+	bool IsWeaponEquipped();
+
+	UFUNCTION(BlueprintCallable)
+	bool IsAiming();
+
+	UFUNCTION(BlueprintCallable)
+	bool IsAlive();
 
 	UFUNCTION(BlueprintCallable)
 	AWeapon* GetEquippedWeapon();
@@ -152,18 +174,39 @@ public:
 
 	FORCEINLINE bool GetDisableGameplay() const { return bDisableGameplay; }
 
-	void SimProxiesTurn();
-
 	void SetDisableGameplay(bool DisableGameplay);
 
 	void SetShouldMulticastEffect(bool ShouldMulticastEffect);
 
+	void SetTeam(ETeam Team);
+
+	void SetMaxWalkSpeed(bool bIsRunning);
+
+	ETeam GetTeam();
+
+	// 根据Team选择重生点
+	void SetSpawnLocation();
+
+	void SetAnimationClass();
 //--------------------------------------------RPC---------------------------------------------------------------
 	UFUNCTION(Server, Reliable)
-	void ServerSetIsAiming(bool bAiming);
+	void ServerRunStart();
+
+	UFUNCTION(Server, Reliable)
+	void ServerRunStop();
 
 	UFUNCTION(NetMulticast, Unreliable)
-	void MulticastHit();
+	void MulticastHit(const FRotator& HitDirection = FRotator::ZeroRotator, const FVector_NetQuantize& HitLocation = FVector::ZeroVector);
+
+	UFUNCTION(Server, Reliable)
+	void ServerLeaveGame();
+
+	// 得分领先
+	UFUNCTION(NetMulticast, Reliable)
+	void MulticastGainTheLead();
+	// 得分不再领先
+	UFUNCTION(NetMulticast, Reliable)
+	void MulticastLostTheLead();
 
 //-----------------------------------------Components---------------------------------------------------------
 	UPROPERTY()
@@ -171,6 +214,7 @@ public:
 private:
 	// 对应骨骼, 在LagCompensationComponent里做Server-Side Rewind精确命中
 	// Box不要改变Scale，要改BoxExtent
+	// 这些用自定义的通道HitBox
 	UPROPERTY(EditAnywhere)
 	UBoxComponent* head;
 	UPROPERTY(EditAnywhere)
@@ -226,10 +270,12 @@ private:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, meta = (AllowPrivateAccess = "true"), Category = Component)
 	UBuffComponent* BuffComponent;
 
-	// 
+	// 处理与延迟相关的
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, meta = (AllowPrivateAccess = "true"), Category = Component)
 	ULagCompensationComponent* LagCompensationComponent;
 
+	UPROPERTY(EditAnywhere, Category = Animation)
+	TSubclassOf<UAnimInstance> DefaultAnimationClass;
 //------------------------------------------Parameters----------------------------------------------------------	
 protected:
 	UPROPERTY()
@@ -240,7 +286,7 @@ protected:
 	UPROPERTY(ReplicatedUsing = OnRep_OverlappingActor)
 	AActor* OverlappingActor; // 与角色重叠的Actor，可能发生互动
 	UFUNCTION()
-	void OnRep_OverlappingActor(AActor* LastActor);// LastWeapon是OverlappingActor还未复制时的值
+	void OnRep_OverlappingActor(AActor* LastActor);// LastActor是OverlappingActor还未复制时的值
 
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = Input)
 	float TurnRateGamepad;
@@ -248,10 +294,33 @@ protected:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = Camera)
 	float CameraThreshold = 200.f; // 相机距离人距离小于这个就会把人物隐藏
 
+	// 是否广播人物的动画和特效，根据Ping决定
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = Net)
+	bool bShouldMulticastEffect = true; 
+
+	UPROPERTY(Replicated)
+	bool bDisableGameplay = false;
+
+	bool bLeftGame = false;
+
+	// 得分最高的人显示的特效
+	UPROPERTY(EditAnywhere, Category = Emitter)
+	UNiagaraSystem* CrownSystem;
+	UPROPERTY()
+	UNiagaraComponent* CrownComponent;
+
+	UPROPERTY(EditAnywhere, Category = Material)
+	UMaterialInstance* OriginalMaterial;
+	UPROPERTY(EditAnywhere, Category = Material)
+	UMaterialInstance* BlueTeamMaterial;
+	UPROPERTY(EditAnywhere, Category = Material)
+	UMaterialInstance* RedTeamMaterial;
+
+public:
 	float CurrMaxSpeed;
 
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = Move)
-	float AimingJogSpeed = 600.f;
+	float AimingJogSpeed = 500.f;
 
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = Move)
 	float RunSpeed = 1000.f;
@@ -262,11 +331,7 @@ protected:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = Move)
 	float CrouchWalkSpeed = 250.f;
 
-	// 是否广播人物的动画和特效，根据Ping决定
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = Net)
-	bool bShouldMulticastEffect = true; 
-
-	UPROPERTY(Replicated)
-	bool bDisableGameplay = false;
+//------------------------------------------Delegates----------------------------------------------------------
+	FOnLeftGame OnLeftGame;
 
 };

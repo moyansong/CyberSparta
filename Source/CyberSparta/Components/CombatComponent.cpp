@@ -72,13 +72,32 @@ void UCombatComponent::UninitializeComponent()
 
 }
 
+void UCombatComponent::SetCombatState(ECombatState State)
+{
+	CombatState = State;
+	OnStateChanged();
+}
+
+void UCombatComponent::ServerSetCombatState_Implementation(ECombatState State)
+{
+	SetCombatState(State);
+}
+
 void UCombatComponent::OnRep_CombatState()
+{
+	OnStateChanged();
+}
+
+void UCombatComponent::OnStateChanged()
 {
 	switch (CombatState)
 	{
-		case ECombatState::ECS_Reloading:
-			SimulateReload();
-			break;
+	case ECombatState::ECS_Reloading:
+		SimulateReload();
+		break;
+	case ECombatState::ECS_Firing:
+		SetIsAiming(true);
+		break;
 	}
 }
 
@@ -102,7 +121,7 @@ void UCombatComponent::SpawnDefaultWeapons()
 				FVector(0.f, 0.f, 10000.f),
 				FRotator::ZeroRotator,
 				SpawnParams
-				);
+			);
 			if (Weapon)
 			{
 				AddWeapon(Weapon);
@@ -158,9 +177,9 @@ void UCombatComponent::SetIdleWeapon(AWeapon* Weapon)
 	if (!Weapon) return;
 
 	MyCharacter = MyCharacter ? MyCharacter : Cast<AMyCharacter>(GetOwner());
-	Weapon->SetOwner(MyCharacter);
 	if (MyCharacter && MyCharacter->GetMesh())
 	{
+		Weapon->SetOwner(GetOwner());
 		Weapon->SetWeaponState(EWeaponState::EWS_Idle);
 		const USkeletalMeshSocket* HandSocket = MyCharacter->GetMesh()->GetSocketByName(FName("hand_rSocket"));
 		if (HandSocket)
@@ -173,9 +192,12 @@ void UCombatComponent::SetIdleWeapon(AWeapon* Weapon)
 void UCombatComponent::EquipWeapon(int32 Value)
 {
 	MyCharacter = MyCharacter ? MyCharacter : Cast<AMyCharacter>(GetOwner());
-	if (!MyCharacter || Weapons.IsEmpty())
+	if (!MyCharacter || CombatState == ECombatState::ECS_Firing) return;
+
+	if (Weapons.IsEmpty())
 	{
 		EquippedWeapon = nullptr;
+		MyCharacter->SetAnimationClass();
 		return;
 	}
 
@@ -189,9 +211,10 @@ void UCombatComponent::EquipWeapon(int32 Value)
 	EquippedWeapon = Weapons[CurrWeaponIndex];
 	if (EquippedWeapon)
 	{
-		EquippedWeapon->SetOwner(MyCharacter);
+		EquippedWeapon->SetOwner(GetOwner());
 		EquippedWeapon->Equip();
 	}
+	MyCharacter->SetAnimationClass();
 
 	if (!MyCharacter->HasAuthority())
 	{
@@ -206,8 +229,8 @@ void UCombatComponent::ServerEquipWeapon_Implementation(int32 Value)
 
 void UCombatComponent::OnRep_EquippedWeapon()
 {
-	if (!EquippedWeapon) return;
-	EquippedWeapon->SetWeaponState(EWeaponState::EWS_Equipped);
+	if (MyCharacter) MyCharacter->SetAnimationClass();
+	if (EquippedWeapon) EquippedWeapon->SetWeaponState(EWeaponState::EWS_Equipped);
 }
 
 void UCombatComponent::OnRep_CurrWeaponIndex()
@@ -219,14 +242,8 @@ void UCombatComponent::ThrowWeapon()
 	if (!EquippedWeapon || !MyCharacter) return;
 	if (MyCharacter->HasAuthority())
 	{
-		EquippedWeapon->Drop();
-		if (EquippedWeapon->GetMesh() && MyCharacter->GetFollowCamera())
-		{
-			EquippedWeapon->GetMesh()->AddImpulseAtLocation(
-				MyCharacter->GetFollowCamera()->GetForwardVector() * 2000.f, 
-				EquippedWeapon->GetActorLocation()
-			);
-		}
+		FVector ThrowDirection = MyCharacter->GetFollowCamera() ? MyCharacter->GetFollowCamera()->GetForwardVector() : MyCharacter->GetActorForwardVector();
+		EquippedWeapon->Throw(ThrowDirection, 2000.f);
 		RemoveWeapon(EquippedWeapon);
 		EquippedWeapon = nullptr;
 		EquipWeapon(0);
@@ -245,24 +262,38 @@ void UCombatComponent::ServerThrowWeapon_Implementation()
 void UCombatComponent::SetIsAiming(bool bAiming)
 {
 	bIsAiming = bAiming;
+	if (MyCharacter) MyCharacter->SetMaxWalkSpeed(false);
+}
+
+void UCombatComponent::OnRep_bIsAiming()
+{
+	if (bIsAiming)
+	{
+		if (MyCharacter && MyCharacter->GetCharacterMovement())
+		{
+			MyCharacter->GetCharacterMovement()->MaxWalkSpeed = MyCharacter->AimingJogSpeed;
+		}
+	}
 }
 
 bool UCombatComponent::CanFire()
 {
-	return bIsAiming && EquippedWeapon && EquippedWeapon->CanFire() && CombatState != ECombatState::ECS_Reloading && MyCharacter && !MyCharacter->GetDisableGameplay();
+	return EquippedWeapon && EquippedWeapon->CanFire() && CombatState != ECombatState::ECS_Reloading && MyCharacter && !MyCharacter->GetDisableGameplay();
 }
 
 void UCombatComponent::FireStart()
 {
-	if (!MyCharacter || !CanFire()) return;
-
+	if (!CanFire()) return;
+	
+	SetIsAiming(true);
 	Fire();// 按键Release过快可能导致定时器还没触发就关闭了，这里保证至少开火一次
 	MyCharacter->GetWorldTimerManager().SetTimer(
 		FireTimer,
 		this,
 		&UCombatComponent::Fire,
 		EquippedWeapon->GetFireDelay(),
-		EquippedWeapon->CanAutomaticFire()
+		EquippedWeapon->CanAutomaticFire(),
+		EquippedWeapon->GetFireDelay()
 	);
 }
 
@@ -272,50 +303,61 @@ void UCombatComponent::FireStop()
 	{
 		MyCharacter->GetWorldTimerManager().ClearTimer(FireTimer);
 	}
+	if (CombatState == ECombatState::ECS_Firing)
+	{
+		ServerSetCombatState(ECombatState::ECS_Idle);
+	}
 }
 
 void UCombatComponent::Fire()
 {
-	if (!MyCharacter || !CanFire()) return;
+	if (!CanFire()) return;
 
-	CrosshairsFireFactor += 1.f;
-	CrosshairsFireFactor = FMath::Min(CrosshairsFireFactor, 5.f);
-	
-	if (EquippedWeapon) EquippedWeapon->LocalFire();
-	
-	ServerFireStart(MyHitTarget);
+	LocalFire(MyHitTarget);
+	ServerFire(MyHitTarget, EquippedWeapon->GetFireDelay());
+}
 
-	// 若不需要广播开火，则只在本地客户端模拟开火
-	if (!MyCharacter->ShouldMulticastEffect())
-	{
-		SimulateFire();
-	}
+void UCombatComponent::LocalFire(const FVector& HitTarget)
+{
+	SimulateFire();
+	EquippedWeapon->FireStart(HitTarget);
+	CrosshairsFireFactor = FMath::Clamp(CrosshairsFireFactor + 2.f, 0.f, 5.f);
 }
 
 void UCombatComponent::SimulateFire()
 {
-	if (!MyCharacter || !EquippedWeapon) return;
+	if (!CanFire()) return;
 
-	if (EquippedWeapon->FireMontage)
+	if (EquippedWeapon->CharacterFireMontage)
 	{
-		MyCharacter->PlayAnimMontage(EquippedWeapon->FireMontage);
+		MyCharacter->PlayAnimMontage(EquippedWeapon->CharacterFireMontage);
 	}
 	EquippedWeapon->SimulateFire();
 }
 
-void UCombatComponent::ServerFireStart_Implementation(const FVector_NetQuantize& HitTarget)
+void UCombatComponent::ServerFire_Implementation(const FVector_NetQuantize100& HitTarget, float FireDelay)
 {
-	EquippedWeapon->FireStart(HitTarget);
-	CombatState = ECombatState::ECS_Firing;
+	SetCombatState(ECombatState::ECS_Firing);
 	if (MyCharacter->ShouldMulticastEffect())
 	{
-		MulticastFireStart(HitTarget);
+		MulticastFire(HitTarget); 
 	}
 }
 
-void UCombatComponent::MulticastFireStart_Implementation(const FVector_NetQuantize& HitTarget)
+bool UCombatComponent::ServerFire_Validate(const FVector_NetQuantize100& HitTarget, float FireDelay)
 {
-	SimulateFire();
+	if (EquippedWeapon)
+	{
+		bool bNearlyEqual = FMath::IsNearlyEqual(EquippedWeapon->GetFireDelay(), FireDelay, 0.001f);
+		return bNearlyEqual;
+	}
+	return true;
+}
+
+void UCombatComponent::MulticastFire_Implementation(const FVector_NetQuantize100& HitTarget)
+{
+	if (MyCharacter && MyCharacter->IsLocallyControlled()) return;
+	LocalFire(HitTarget);
 }
 
 void UCombatComponent::TargetStart()
@@ -340,12 +382,16 @@ void UCombatComponent::TargetStop()
 	}
 }
 
+bool UCombatComponent::CanReload()
+{
+	return CombatState == ECombatState::ECS_Idle && EquippedWeapon && EquippedWeapon->CanReload();
+}
+
 void UCombatComponent::ReloadStart()
 {
-	if (CombatState != ECombatState::ECS_Reloading && EquippedWeapon && EquippedWeapon->CanReload())
-	{
-		ServerReloadStart();
-	}
+	if (!CanReload()) return;
+	
+	ServerReloadStart();
 }
 
 void UCombatComponent::ReloadStop()
@@ -355,20 +401,7 @@ void UCombatComponent::ReloadStop()
 
 void UCombatComponent::ServerReloadStart_Implementation()
 {
-	CombatState = ECombatState::ECS_Reloading;
-	SimulateReload();
-
-	// 后续用动画通知来代替
-	if (MyCharacter)
-	{
-		MyCharacter->GetWorldTimerManager().SetTimer(
-			ReloadTimer,
-			this,
-			&UCombatComponent::ReloadFinished,
-			2.f,
-			false
-		);
-	}
+	SetCombatState(ECombatState::ECS_Reloading);
 }
 
 void UCombatComponent::SimulateReload()
@@ -386,7 +419,7 @@ void UCombatComponent::ReloadFinished()
 {
 	if (MyCharacter && MyCharacter->HasAuthority() && EquippedWeapon)
 	{
-		CombatState = ECombatState::ECS_Idle;
+		SetCombatState(ECombatState::ECS_Idle);
 		EquippedWeapon->ReloadFinished();
 	}
 }
@@ -444,27 +477,10 @@ void UCombatComponent::SetHUDCrosshairs(float DeltaTime)
 	MyHUD = MyHUD ? MyHUD : MyController->GetMyHUD();
 	if (MyHUD)
 	{
-		float CrosshairSpread;
-		if (EquippedWeapon)
-		{
-			CrosshairSpread = EquippedWeapon->CorsshiarsSpreadScale;
-			HUDPackage.CrosshairsCenter = EquippedWeapon->CrosshairsCenter;
-			HUDPackage.CrosshairsLeft = EquippedWeapon->CrosshairsLeft;
-			HUDPackage.CrosshairsRight = EquippedWeapon->CrosshairsRight;
-			HUDPackage.CrosshairsTop = EquippedWeapon->CrosshairsTop;
-			HUDPackage.CrosshairsBottom = EquippedWeapon->CrosshairsBottom;
-		}
-		else
-		{
-			CrosshairSpread = 1.f;
-			HUDPackage.CrosshairsCenter = nullptr;
-			HUDPackage.CrosshairsLeft = nullptr;
-			HUDPackage.CrosshairsRight = nullptr;
-			HUDPackage.CrosshairsTop = nullptr;
-			HUDPackage.CrosshairsBottom = nullptr;
-		}
+		InitializeHUDCrosshairs();
 
 		// 计算 Corsshairs Spread
+		float CrosshairSpread = EquippedWeapon ? EquippedWeapon->CorsshiarsSpreadScale : 1.f;
 		FVector Velocity = MyCharacter->GetVelocity();
 		Velocity.Z = 0.f;
 		CrosshairSpread = Velocity.Size() / 400.f;
@@ -482,6 +498,26 @@ void UCombatComponent::SetHUDCrosshairs(float DeltaTime)
 
 		HUDPackage.CrosshairSpread = CrosshairSpread + CrosshairsInAirFactor + CrosshairsFireFactor;
 		MyHUD->SetHUDPackage(HUDPackage);
+	}
+}
+
+void UCombatComponent::InitializeHUDCrosshairs()
+{
+	if (EquippedWeapon)
+	{
+		HUDPackage.CrosshairsCenter = EquippedWeapon->CrosshairsCenter;
+		HUDPackage.CrosshairsLeft = EquippedWeapon->CrosshairsLeft;
+		HUDPackage.CrosshairsRight = EquippedWeapon->CrosshairsRight;
+		HUDPackage.CrosshairsTop = EquippedWeapon->CrosshairsTop;
+		HUDPackage.CrosshairsBottom = EquippedWeapon->CrosshairsBottom;
+	}
+	else
+	{
+		HUDPackage.CrosshairsCenter = nullptr;
+		HUDPackage.CrosshairsLeft = nullptr;
+		HUDPackage.CrosshairsRight = nullptr;
+		HUDPackage.CrosshairsTop = nullptr;
+		HUDPackage.CrosshairsBottom = nullptr;
 	}
 }
 
@@ -547,3 +583,21 @@ void UCombatComponent::TraceUnderCrosshairs(FHitResult& HitResult)
 	}
 }
 
+void UCombatComponent::KillReward()
+{
+	for (auto Weapon : Weapons)
+	{
+		if (Weapon && (Weapon->GetWeaponType() == EWeaponType::EWT_SpecialWeapon || Weapon == EquippedWeapon))
+		{
+			Weapon->Drop(); 
+		}
+	}
+}
+
+void UCombatComponent::OnMontageEnded(UAnimMontage* Montage, bool bInterrupted)
+{
+	if (EquippedWeapon && Montage == EquippedWeapon->ReloadMontage)
+	{
+		ReloadFinished();
+	}
+}

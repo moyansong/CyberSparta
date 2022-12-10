@@ -7,13 +7,17 @@
 #include "SettlementWidget.generated.h"
 
 class UTextBlock;
+class UButton;
+class UMultiplayerSessionsSubsystem;
+class APlayerController;
 
 UCLASS()
 class CYBERSPARTA_API USettlementWidget : public UUserWidget
 {
 	GENERATED_BODY()
-public:
+
 //------------------------------------------------Parameters--------------------------------------------------------------
+public:
 	UPROPERTY(meta = (BindWidget))
 	UTextBlock* SettlementTimeText;
 

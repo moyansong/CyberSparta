@@ -4,17 +4,26 @@
 #include "HitScanWeapon.h"
 #include "Engine/SkeletalMeshSocket.h"
 #include "Kismet/GameplayStatics.h"
+#include "../Characters/MyCharacter.h"
+#include "../PlayerController/MyPlayerController.h"
+#include "../Components/LagCompensationComponent.h"
 
 void AHitScanWeapon::FireStart(const FVector& HitTarget)
 {
 	Super::FireStart(HitTarget);
 
-	APawn* MyPawn = Cast<APawn>(GetOwner());
-	if (!MyPawn) return;
-	AController* InstigatorController = MyPawn->GetController();
+	if (MyCharacter && MyCharacter->IsLocallyControlled())
+	{
+		HitScanFire(HitTarget);
+	}
+}
+
+void AHitScanWeapon::HitScanFire(const FVector& HitTarget)
+{
+	if (!MyCharacter || !MyController) return;
 
 	const USkeletalMeshSocket* MuzzleSocket = GetMesh()->GetSocketByName("Muzzle");
-	if (MuzzleSocket && InstigatorController)
+	if (MuzzleSocket)
 	{
 		FTransform SocketTransform = MuzzleSocket->GetSocketTransform(GetMesh());
 		FVector Start = SocketTransform.GetLocation();
@@ -30,21 +39,22 @@ void AHitScanWeapon::FireStart(const FVector& HitTarget)
 				End,
 				ECollisionChannel::ECC_Visibility
 			);
-			if (FireHit.GetActor())
+			AMyCharacter* HitCharacter = Cast<AMyCharacter>(FireHit.GetActor());
+			if (HitCharacter)
 			{
-				UGameplayStatics::ApplyDamage(
-					FireHit.GetActor(),
-					Damage,
-					InstigatorController,
-					this,
-					UDamageType::StaticClass()
+				MyCharacter->GetLagCompensationComponent()->ServerScoreRequest(
+					HitCharacter,
+					Start,
+					HitTarget,
+					MyController->GetServerTime() - (HasAuthority() ? 0.f : MyController->SingleTripTime),// 为什么不直接传Client的时间是因为每个Client的GetWorld()->GetTimeSeconds()时间不一样，与Client加入游戏的时间有关
+					this
 				);
 			}
 		}
 	}
 }
 
-void AHitScanWeapon::SpawnProjectile(const FVector& HitTarget)
+void AHitScanWeapon::SpawnProjectile(const FVector& HitTarget, bool bProjectileUseServerSideRewind, bool bProjectileReplicates)
 {
 	// 什么都不做，不产生子弹
 }

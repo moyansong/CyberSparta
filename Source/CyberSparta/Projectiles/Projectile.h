@@ -34,13 +34,16 @@ public:
 	FORCEINLINE UBoxComponent* GetCollisionComponent() { return CollisionComponent; }
 	FORCEINLINE UStaticMeshComponent* GetMesh() { return MeshComponent; }
 
+	FORCEINLINE float GetDamage() const { return Damage; }
+	FORCEINLINE float GetHeadShotDamage() const { return HeadShotDamage; }
+
 	// OnHit会处理与网络有关的事，比如广播特效，在Server上产生伤害
 	UFUNCTION()
 	virtual void OnHit(UPrimitiveComponent* HitComp, AActor* OtherActor, UPrimitiveComponent* OtherComp, FVector NormalImpulse, const FHitResult& Hit);
 	UFUNCTION()
 	virtual void ApplyDamage(UPrimitiveComponent* HitComp, AActor* OtherActor, UPrimitiveComponent* OtherComp, FVector NormalImpulse, const FHitResult& Hit);
 
-	void Explode();
+	void Explode();// 只会在Server施加伤害
 //--------------------------------------------RPC----------------------------------------------------------
 	UFUNCTION()
 	virtual void SimulateHit();
@@ -71,11 +74,23 @@ protected:
 	UPROPERTY(EditAnywhere, Category = Damage)
 	float Damage = 30.f;
 
+	UPROPERTY(EditAnywhere, Category = Damage)
+	float HeadShotDamage = 100.f;
+
 	// 范围伤害用的
 	UPROPERTY(EditAnywhere, Category = Damage)
 	float DamageInnerRadius = 200.f;
 	UPROPERTY(EditAnywhere, Category = Damage)
 	float DamageOuterRadius = 500.f;
+
+	UPROPERTY(EditAnywhere, Category = Net)
+	bool bUseServerSideRewind = true;
+
+	FVector_NetQuantize TraceStart;
+	FVector_NetQuantize100 InitialVelocity;
+
+	UPROPERTY(EditAnywhere, Category = Speed)
+	float InitialSpeed = 15000.f;
 //------------------------------------------Emitters----------------------------------------------------------
 	UPROPERTY(EditAnywhere, Category = Emitter)
 	UParticleSystem* Tracer; // 弹道轨迹特效
@@ -86,5 +101,6 @@ protected:
 //------------------------------------------Sounds----------------------------------------------------------
 	UPROPERTY(EditAnywhere, Category = Sound)
 	USoundCue* ImpactSound;
+
 
 };

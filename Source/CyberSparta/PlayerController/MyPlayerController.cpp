@@ -14,11 +14,13 @@
 #include "../Components/CombatComponent.h"
 #include "../Characters/MyCharacter.h"
 #include "../GameStates/MyGameState.h"
+#include "../Types/Announcement.h"
 #include "../HUD/MyHUD.h"
 #include "../HUD/AttributeWidget.h"
 #include "../HUD/GameStateWidget.h"
 #include "../HUD/AnnouncementWidget.h"
 #include "../HUD/SettlementWidget.h"
+#include "../HUD/EscapeWidget.h"
 
 
 void AMyPlayerController::BeginPlay()
@@ -42,6 +44,14 @@ void AMyPlayerController::Tick(float DeltaTime)
 	CheckPing(DeltaTime);
 }
 
+void AMyPlayerController::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
+{
+	Super::GetLifetimeReplicatedProps(OutLifetimeProps);
+
+	DOREPLIFETIME(AMyPlayerController, MatchState);
+	DOREPLIFETIME(AMyPlayerController, bIsTeamMatch);
+}
+
 void AMyPlayerController::CheckPing(float DeltaTime)
 {
 	HighPingRunningTime += DeltaTime;
@@ -53,7 +63,12 @@ void AMyPlayerController::CheckPing(float DeltaTime)
 			if (MyPlayerState->GetPingInMilliseconds() > HighPingThreshold)
 			{
 				HighPingWarning();
+				ServerReportPingStatus(MyPlayerState->GetPingInMilliseconds());
 				PingAnimationRunningTime = 0.f;
+			}
+			else
+			{
+				ServerReportPingStatus(false);
 			}
 		}
 		HighPingRunningTime = 0.f;
@@ -72,6 +87,12 @@ void AMyPlayerController::CheckPing(float DeltaTime)
 	}
 }
 
+void AMyPlayerController::ServerReportPingStatus_Implementation(float Ping)
+{
+	// Ping太高就取消一些设置，比如不广播人物的动作特效之类的，由于广播是由Server做，所以在Server上设置就可以
+	HigPingDelegate.Broadcast(Ping);
+}
+
 void AMyPlayerController::ReceivedPlayer()
 {
 	Super::ReceivedPlayer();
@@ -86,6 +107,14 @@ void AMyPlayerController::OnPossess(APawn* InPawn)
 {
 	Super::OnPossess(InPawn);
 
+}
+
+void AMyPlayerController::SetupInputComponent()
+{
+	Super::SetupInputComponent();
+	if (!InputComponent) return;
+	
+	InputComponent->BindAction("Escape", IE_Pressed, this, &AMyPlayerController::ShowEscapeWidget);
 }
 
 void AMyPlayerController::ClientOnPossess_Implementation(APawn* InPawn)
@@ -108,7 +137,8 @@ void AMyPlayerController::ClientReportServerTime_Implementation(float TimeOfClie
 {
 	// 两次RPC消耗的时间
 	float RoundTripTime = GetWorld()->GetTimeSeconds() - TimeOfClientRequest;
-	float CurrServerTime = TimeOfServerReceivedRequest + 0.5f * RoundTripTime;
+	SingleTripTime = RoundTripTime * 0.5f;
+	float CurrServerTime = TimeOfServerReceivedRequest + SingleTripTime;
 	ClientServerDelta = CurrServerTime - GetWorld()->GetTimeSeconds();
 }
 
@@ -144,13 +174,6 @@ void AMyPlayerController::SetHUDTime()
 	}
 
 	CountdownInt = SecondsLeft;
-}
-
-void AMyPlayerController::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
-{
-	Super::GetLifetimeReplicatedProps(OutLifetimeProps);
-
-	DOREPLIFETIME(AMyPlayerController, MatchState);
 }
 
 void AMyPlayerController::CheckTimeSync(float DeltaTime)
@@ -196,6 +219,7 @@ void AMyPlayerController::InitializeInProgressWidget()
 	SetHUDHealth();
 	SetHUDShield();
 	SetHUDWeaponAmmo();
+	InitializeTeamScore();
 	MyPlayerState = MyPlayerState ? MyPlayerState :GetPlayerState<AMyPlayerState>();
 	if (MyPlayerState)
 	{
@@ -218,15 +242,21 @@ void AMyPlayerController::OnPawnChanged(APawn* NewPawn)
 	}
 }
 
-void AMyPlayerController::OnMatchStateSet(FName State)
+void AMyPlayerController::OnMatchStateSet(FName State, bool bTeamMatch)
 {
 	MatchState = State;
+	bIsTeamMatch = bTeamMatch;
 	OnMatchStateChanged();
 }
 
 void AMyPlayerController::OnRep_MatchState()
 {
 	OnMatchStateChanged();
+}
+
+void AMyPlayerController::OnRep_bIsTeamMatch()
+{
+	InitializeTeamScore();
 }
 
 void AMyPlayerController::OnMatchStateChanged()
@@ -258,41 +288,12 @@ void AMyPlayerController::HandleMatchHasSettled()
 
 	MyHUD->RemoveInProgressWidget();
 	MyHUD->CreateSettlementWidget();
+	SetHUDWinner();
 
 	MyCharacter = Cast<AMyCharacter>(GetPawn());
 	if (MyCharacter)
 	{
 		MyCharacter->SetDisableGameplay(true);
-	}
-
-	AMyGameState* MyGameState = Cast<AMyGameState>(UGameplayStatics::GetGameState(this));
-	//MyPlayerState = GetPlayerState<AMyPlayerState>();
-	if (MyGameState && MyPlayerState && MyHUD->SettlementWidget && MyHUD->SettlementWidget->WinnerText)
-	{
-		TArray<AMyPlayerState*> TopPlayers = MyGameState->TopScoringPlayers;
-		FString WinnerString;
-		if (TopPlayers.IsEmpty())
-		{
-			WinnerString = FString("No winner!!!");
-		}
-		else if (TopPlayers.Num() == 1 && TopPlayers[0] == MyPlayerState)
-		{
-			WinnerString = FString("You are the winner!!!");
-		}
-		else if (TopPlayers.Num() == 1)
-		{
-			// \n是换行
-			WinnerString = FString::Printf(TEXT("Winner: \n%s"), *TopPlayers[0]->GetPlayerName());
-		}
-		else if (TopPlayers.Num() > 1)
-		{
-			WinnerString = FString("Players tied for win:\n");
-			for (auto TopPlayer : TopPlayers)
-			{
-				WinnerString.Append(FString::Printf(TEXT("%s\n"), *TopPlayer->GetPlayerName()));
-			}
-		}
-		MyHUD->SettlementWidget->WinnerText->SetText(FText::FromString(WinnerString));
 	}
 }
 
@@ -332,6 +333,52 @@ void AMyPlayerController::SetHUDDefeats(int32 Defeats)
 	}
 }
 
+void AMyPlayerController::InitializeTeamScore()
+{
+	if (bIsTeamMatch)
+	{
+		SetHUDBlueTeamScore(0);
+		SetHUDRedTeamScore(0);
+	}
+	else
+	{
+		HideTeamScore();
+	}
+}
+
+void AMyPlayerController::HideTeamScore()
+{
+	MyHUD = MyHUD ? MyHUD : Cast<AMyHUD>(GetHUD());
+	if (MyHUD && MyHUD->GameStateWidget && MyHUD->GameStateWidget->BlueTeamScoreText)
+	{
+		MyHUD->GameStateWidget->BlueTeamScoreText->SetText(FText());
+	}
+	if (MyHUD && MyHUD->GameStateWidget && MyHUD->GameStateWidget->RedTeamScoreText)
+	{
+		MyHUD->GameStateWidget->RedTeamScoreText->SetText(FText());
+	}
+}
+
+void AMyPlayerController::SetHUDBlueTeamScore(int32 BlueScore)
+{
+	MyHUD = MyHUD ? MyHUD : Cast<AMyHUD>(GetHUD());
+	if (MyHUD && MyHUD->GameStateWidget && MyHUD->GameStateWidget->BlueTeamScoreText)
+	{
+		FString ScoreString = FString::Printf(TEXT("%d"), BlueScore);
+		MyHUD->GameStateWidget->BlueTeamScoreText->SetText(FText::FromString(ScoreString));
+	}
+}
+
+void AMyPlayerController::SetHUDRedTeamScore(int32 RedScore)
+{
+	MyHUD = MyHUD ? MyHUD : Cast<AMyHUD>(GetHUD());
+	if (MyHUD && MyHUD->GameStateWidget && MyHUD->GameStateWidget->RedTeamScoreText)
+	{
+		FString ScoreString = FString::Printf(TEXT("%d"), RedScore);
+		MyHUD->GameStateWidget->RedTeamScoreText->SetText(FText::FromString(ScoreString));
+	}
+}
+
 void AMyPlayerController::SetHUDWeaponAmmo()
 {
 	MyCharacter = Cast<AMyCharacter>(GetPawn());
@@ -356,6 +403,53 @@ void AMyPlayerController::SetHUDMatchCountdown(float CountdownTime)
 		int32 Seconds = CountdownTime - Minutes * 60;
 		FString CountdownString = FString::Printf(TEXT("%02d:%02d"), Minutes, Seconds);
 		MyHUD->GameStateWidget->MatchCountdownText->SetText(FText::FromString(CountdownString));
+	}
+}
+
+void AMyPlayerController::SetHUDWinner()
+{
+	AMyGameState* MyGameState = Cast<AMyGameState>(UGameplayStatics::GetGameState(this));
+	if (MyGameState && MyPlayerState && MyHUD->SettlementWidget && MyHUD->SettlementWidget->WinnerText)
+	{
+		TArray<AMyPlayerState*> TopPlayers = MyGameState->TopScoringPlayers;
+		FString WinnerString;
+		if (bIsTeamMatch)
+		{
+			if (MyGameState->BlueTeamScore > MyGameState->RedTeamScore)
+			{
+				WinnerString = Announcement::BlueTeamWin;
+			}
+			else if (MyGameState->BlueTeamScore < MyGameState->RedTeamScore)
+			{
+				WinnerString = Announcement::RedTeamWin;
+			}
+			else
+			{
+				WinnerString = Announcement::TeamsTiedForWin;
+			}
+		}
+		else if (TopPlayers.IsEmpty())
+		{
+			WinnerString = Announcement::NoWinner;
+		}
+		else if (TopPlayers.Num() == 1 && TopPlayers[0] == MyPlayerState)
+		{
+			WinnerString = Announcement::YouAreTheWinner;
+		}
+		else if (TopPlayers.Num() == 1)
+		{
+			// \n是换行
+			WinnerString = FString::Printf(TEXT("Winner: \n%s"), *TopPlayers[0]->GetPlayerName());
+		}
+		else if (TopPlayers.Num() > 1)
+		{
+			WinnerString = Announcement::PlayersTiedForWin;
+			for (auto TopPlayer : TopPlayers)
+			{
+				WinnerString.Append(FString::Printf(TEXT("%s\n"), *TopPlayer->GetPlayerName()));
+			}
+		}
+		MyHUD->SettlementWidget->WinnerText->SetText(FText::FromString(WinnerString));
 	}
 }
 
@@ -419,6 +513,42 @@ void AMyPlayerController::StopHighPingWarning()
 		{
 			MyHUD->GameStateWidget->StopAnimation(MyHUD->GameStateWidget->HighPingAnimation);
 		}
+	}
+}
+
+void AMyPlayerController::ShowEscapeWidget()
+{
+	if (!EscapeWidgetClass) return;
+	if (!EscapeWidget)
+	{
+		EscapeWidget = CreateWidget<UEscapeWidget>(this, EscapeWidgetClass);
+	}
+	if (EscapeWidget)
+	{
+		bEscapeWidgetOpen = !bEscapeWidgetOpen;
+		if (bEscapeWidgetOpen)
+		{
+			EscapeWidget->MenuSetup();
+		}
+		else
+		{
+			EscapeWidget->MenuTearDown();
+		}
+	}
+}
+
+void AMyPlayerController::BroadcastKill(AMyPlayerState* AttackerPlayerState, AMyPlayerState* VictimPlayerState)
+{
+	ClientKillAnnouncement(AttackerPlayerState, VictimPlayerState);
+}
+
+void AMyPlayerController::ClientKillAnnouncement_Implementation(AMyPlayerState* AttackerPlayerState, AMyPlayerState* VictimPlayerState)
+{
+	MyHUD = MyHUD ? MyHUD : Cast<AMyHUD>(GetHUD());
+	if (MyHUD && AttackerPlayerState && VictimPlayerState)
+	{
+		// 如果是用Steam连接的，PlayerName是Steam名字
+		MyHUD->AddKillAnnouncement(AttackerPlayerState->GetPlayerName(), VictimPlayerState->GetPlayerName());
 	}
 }
 

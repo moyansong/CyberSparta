@@ -29,7 +29,7 @@ public:
 //-----------------------------------------------Functions------------------------------------------------------------
 	UFUNCTION()
 	void EquipWeapon(int32 Value); // 在Server和Client都会调用
-	
+
 	UFUNCTION()
 	void ThrowWeapon();
  
@@ -41,23 +41,25 @@ public:
 	void FireStop();
 	UFUNCTION()
 	void Fire();
+	UFUNCTION()
+	void LocalFire(const FVector& HitTarget);
 
-	// 该函数只模拟开火，生成动画特效之类的，不生成子弹,会广播到客户端
+	// 该函数只模拟开火，生成动画特效之类的，不生成子弹
 	UFUNCTION(BlueprintCallable)
 	void SimulateFire();
-
-	void SetIsAiming(bool bAiming);
 
 	// 穿过准星的射线
 	void TraceUnderCrosshairs(FHitResult& HitResult);
 
-	void SetHUDCrosshairs(float DeltaTime);
+	void InitializeHUDCrosshairs();
 
 	UFUNCTION()
 	void TargetStart();
 	UFUNCTION()
 	void TargetStop();
 
+	UFUNCTION()
+	bool CanReload();
 	UFUNCTION()
 	void ReloadStart();
 	UFUNCTION()
@@ -67,9 +69,11 @@ public:
 	void SimulateReload(); // 在OnRep_CombatState中调用
 
 	UFUNCTION(BlueprintCallable)
-	void ReloadFinished(); // 在动画通知中调用，换弹结束后把CombatState设为Idle，现在暂时用定时器实现
+	void ReloadFinished(); // 在Montage结束的回调里调用
 
 	void SpawnDefaultWeapons();
+
+	void KillReward();
 
 	UFUNCTION()
 	void AddWeapon(AWeapon* Weapon); // 只在Server进行
@@ -77,25 +81,38 @@ public:
 	UFUNCTION()
 	void RemoveWeapon(AWeapon* Weapon);// 不保证只在Server进行
 
-	void SetIdleWeapon(AWeapon* Weapon);
-
 	void UpdateHUD(AMyHUD* PlayerHUD);
+
+	UFUNCTION()
+	void Test();
+
+	UFUNCTION()
+	void OnMontageEnded(UAnimMontage* Montage, bool bInterrupted);
+
+	void OnStateChanged();
+//-----------------------------------------------Set&&Get------------------------------------------------------------
+	void SetIsAiming(bool bAiming);
+
+	void SetIdleWeapon(AWeapon* Weapon);
 
 	void SetHUDWeaponAmmo();
 
 	bool IsHUDVaild();
 
-	void Test();
+	void SetCombatState(ECombatState State);
+
+	void SetHUDCrosshairs(float DeltaTime);
 
 protected:
 	virtual void BeginPlay() override;
 //--------------------------------------------------RPC------------------------------------------------------------
-	// 由于击中位置是客户端检测的，所以需要传递给服务器，因为子弹再服务器生成，FVector_NetQuantize是网络中传参用的，只能传整数
-	UFUNCTION(Server, Reliable)
-	void ServerFireStart(const FVector_NetQuantize& HitTarget); 
+	// 由于击中位置是客户端检测的，所以需要传递给服务器，FVector_NetQuantize是网络中传参用的，只能传整数,FVector_NetQuantize100更精准
+	// 传FireDelay是防作弊的，因为FireDelay是客户端决定的，在这里查看客户端是否修改了FireDelay
+	UFUNCTION(Server, Reliable, WithValidation)
+	void ServerFire(const FVector_NetQuantize100& HitTarget, float FireDelay);
 
 	UFUNCTION(NetMulticast, Reliable)
-	void MulticastFireStart(const FVector_NetQuantize& HitTarget);
+	void MulticastFire(const FVector_NetQuantize100& HitTarget);
 
 	UFUNCTION(Server, Reliable)
 	void ServerReloadStart();
@@ -108,6 +125,9 @@ protected:
 
 	UFUNCTION(Server, Reliable)
 	void ServerThrowWeapon();
+
+	UFUNCTION(Server, Reliable)
+	void ServerSetCombatState(ECombatState State);
 
 private:
 //------------------------------------------------Parameters--------------------------------------------------------------
@@ -145,8 +165,10 @@ private:
 	UFUNCTION()
 	void OnRep_CombatState();
 
-	UPROPERTY(Replicated)
+	UPROPERTY(ReplicatedUsing = OnRep_bIsAiming)
 	bool bIsAiming = true;
+	UFUNCTION()
+	void OnRep_bIsAiming();
 
 	bool bCanFire = true;
 
@@ -166,7 +188,6 @@ private:
 	FHUDPackage HUDPackage;
 
 	FTimerHandle FireTimer;
-	FTimerHandle ReloadTimer;
 	FTimerHandle AutomaticReloadTimer;
 
 };

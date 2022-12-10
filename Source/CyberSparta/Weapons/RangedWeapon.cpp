@@ -4,6 +4,7 @@
 #include "RangedWeapon.h"
 #include "Engine/SkeletalMeshSocket.h"
 #include "Camera/CameraComponent.h"
+#include "Kismet/KismetMathLibrary.h"
 #include "../CyberSparta.h"
 #include "../Characters/MyCharacter.h"
 #include "../Projectiles/Projectile.h"
@@ -32,12 +33,17 @@ void ARangedWeapon::Tick(float DeltaTime)
 void ARangedWeapon::FireStart(const FVector& HitTarget)
 {
 	Super::FireStart(HitTarget);
+	if (!MyCharacter) return;
 
-	// 只在服务器生成子弹，复制到客户端
-	if (HasAuthority())
+	if (bUseServerSideRewind) 
 	{
-		// 拓展：HitTarget加上后坐力
-		SpawnProjectile(HitTarget);
+		// 在每个端都生成子弹，且不复制，但只有本地端需要向Server发RPC确认Hit结果
+		SpawnProjectile(HitTarget, MyCharacter->IsLocallyControlled(), false);
+	}
+	else if (HasAuthority())
+	{
+		// 只在Server产生子弹，也只在Server碰撞，子弹需要复制
+		SpawnProjectile(HitTarget, false, true);
 	}
 }
 
@@ -45,17 +51,14 @@ void ARangedWeapon::SimulateFire()
 {
 	Super::SimulateFire();
 	
-	// 借由广播在每个客户端生成一个，不是复制
 	SpawnShellCase();
 }
 
-void ARangedWeapon::SpawnProjectile(const FVector& HitTarget)
+void ARangedWeapon::SpawnProjectile(const FVector& HitTarget, bool bProjectileUseServerSideRewind, bool bProjectileReplicates)
 {
-	if (!HasAuthority() || !ProjectileClass) return;
-
 	USkeletalMeshComponent* Mesh = GetMesh();
 	UWorld* World = GetWorld();
-	if (Mesh && World && GetOwner())
+	if (Mesh && World && GetOwner() && ProjectileClass)
 	{
 		APawn* InstigatorPawn = Cast<APawn>(GetOwner());
 		const USkeletalMeshSocket* MuzzleSocket = Mesh->GetSocketByName(FName("Muzzle"));
@@ -75,6 +78,13 @@ void ARangedWeapon::SpawnProjectile(const FVector& HitTarget)
 				ProjectileRotation,
 				SpawnParams
 			);
+			if (Projectile)
+			{
+				Projectile->bUseServerSideRewind = bProjectileUseServerSideRewind;
+				Projectile->bReplicates = bProjectileReplicates;
+				Projectile->TraceStart = MuzzleTransform.GetLocation();
+				Projectile->InitialVelocity = Projectile->GetActorForwardVector() * Projectile->InitialSpeed;
+			}
 		}
 	}
 }
@@ -146,4 +156,9 @@ void ARangedWeapon::Equip()
 	{
 		DefaultFOV = MyCharacter->GetFollowCamera()->FieldOfView;
 	}
+}
+
+AProjectile* ARangedWeapon::GetDefaultProjectile()
+{
+	return ProjectileClass ? Cast<AProjectile>(ProjectileClass->GetDefaultObject()) : nullptr;
 }

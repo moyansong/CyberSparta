@@ -84,13 +84,13 @@ protected:
 	float CurrBuffDuration = 0.f;	// Buff已经生效的时间
 
 //--------------------------------------------Emitters-------------------------------------------------------------
-	UPROPERTY(EditAnywhere, Category = Emitter)
+	UPROPERTY(EditAnywhere, Category = Effect)
 	UNiagaraSystem* WorldEffect;	// 在世界中的特效
 	
-	UPROPERTY(EditAnywhere, Category = Emitter)
+	UPROPERTY(EditAnywhere, Category = Effect)
 	UNiagaraSystem* AttachEffect;	// 在人身上的特效
 
-	UPROPERTY(EditAnywhere, Category = Emitter)
+	UPROPERTY(EditAnywhere, Category = Effect)
 	UNiagaraSystem* DestroyEffect;	// Buff失效时的特效
 private:
 //--------------------------------------------Components-------------------------------------------------------------

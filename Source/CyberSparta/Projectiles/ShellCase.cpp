@@ -2,25 +2,30 @@
 
 
 #include "ShellCase.h"
+#include "../CyberSparta.h"
 
 AShellCase::AShellCase()
 {
- 	// Set this actor to call Tick() every frame.  You can turn this off to improve performance if you don't need it.
 	PrimaryActorTick.bCanEverTick = false;
+	InitialLifeSpan = 3.f;
 
 	MeshComponent = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("MeshComponent"));
 	SetRootComponent(MeshComponent);
-	MeshComponent->SetCollisionResponseToChannel(ECollisionChannel::ECC_Camera, ECollisionResponse::ECR_Ignore);
 	MeshComponent->SetSimulatePhysics(true);
 	MeshComponent->SetNotifyRigidBodyCollision(true);// 开了物理模拟要想触发Hit则要设置true，蓝图中是Simulation Grenates Hit Events
 	MeshComponent->SetEnableGravity(true);
+	MeshComponent->SetCollisionResponseToAllChannels(ECollisionResponse::ECR_Ignore);
+	MeshComponent->SetCollisionResponseToChannel(ECollisionChannel::ECC_WorldStatic, ECollisionResponse::ECR_Block);
 }
 
 void AShellCase::BeginPlay()
 {
 	Super::BeginPlay();
 	
-	MeshComponent->AddImpulse(GetActorForwardVector() * ShellEjectionImpluse);
+	FRotator Rotation = GetOwner() ? GetOwner()->GetActorRotation() : FRotator::ZeroRotator;
+	Rotation.Pitch += 45.f;
+	Rotation.Yaw += 90.f;
+	MeshComponent->AddImpulse(Rotation.Vector() * 10.f);
 	MeshComponent->OnComponentHit.AddDynamic(this, &AShellCase::OnHit);
 }
 
@@ -32,6 +37,5 @@ void AShellCase::OnHit(UPrimitiveComponent* HitComp, AActor* OtherActor, UPrimit
 void AShellCase::Tick(float DeltaTime)
 {
 	Super::Tick(DeltaTime);
-
 }
 

@@ -4,6 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "GameFramework/PlayerState.h"
+#include "../Types/Team.h"
 #include "MyPlayerState.generated.h"
 
 class AMyCharacter;
@@ -28,6 +29,11 @@ public:
 	void IncreaseDefeats(int32 DefeatsIncrement);
 
 	FORCEINLINE int32 GetDefeats() const { return Defeats; }
+
+	bool IsTeammate(AMyPlayerState* OtherPlayer);
+
+	void SetTeam(ETeam TeamToSet);
+	FORCEINLINE ETeam GetTeam() const { return Team; }
 private:
 //------------------------------------------------Parameters--------------------------------------------------------------
 	UPROPERTY()
@@ -39,4 +45,8 @@ private:
 	UPROPERTY(ReplicatedUsing = OnRep_Defeats)
 	int32 Defeats = 0;
 
+	UPROPERTY(ReplicatedUsing = OnRep_Team)
+	ETeam Team = ETeam::ET_NoTeam;
+	UFUNCTION()
+	void OnRep_Team();
 };

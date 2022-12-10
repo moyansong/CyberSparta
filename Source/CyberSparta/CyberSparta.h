@@ -6,6 +6,9 @@
 #include "Kismet/GameplayStatics.h"
 
 #define ECC_SkeletalMesh ECollisionChannel::ECC_GameTraceChannel1
+#define ECC_HitBox ECollisionChannel::ECC_GameTraceChannel2
+// 范围伤害用的，只有WorldStatic会Block
+#define ECC_RadialDamage ECollisionChannel::ECC_GameTraceChannel3
 
 #define CUSTOM_DEPTH_PURPLE 250
 #define CUSTOM_DEPTH_BLUE 251

@@ -5,39 +5,102 @@
 #include "Kismet/GameplayStatics.h"
 #include "GameFramework/ProjectileMovementComponent.h"
 #include "GameFramework/Character.h"
+#include "../CyberSparta.h"
+#include "../Characters/MyCharacter.h"
+#include "../Weapons/Weapon.h"
+#include "../PlayerController/MyPlayerController.h"
+#include "../Components/LagCompensationComponent.h"
 
 AProjectileBullet::AProjectileBullet()
 {
 	ProjectileMovementComponent = CreateDefaultSubobject<UProjectileMovementComponent>(TEXT("ProjectileMovementComponent"));
 	ProjectileMovementComponent->SetIsReplicated(true);
 	ProjectileMovementComponent->bRotationFollowsVelocity = true;
-	ProjectileMovementComponent->InitialSpeed = 15000.f;
-	ProjectileMovementComponent->MaxSpeed = 15000.f;
+	ProjectileMovementComponent->InitialSpeed = InitialSpeed;
+	ProjectileMovementComponent->MaxSpeed = InitialSpeed;
 	ProjectileMovementComponent->ProjectileGravityScale = 0.f;
 }
 
+void AProjectileBullet::BeginPlay()
+{
+	Super::BeginPlay();
+
+	/*FPredictProjectilePathParams PredictParams;
+	PredictParams.bTraceWithChannel = true;
+	PredictParams.bTraceWithCollision = true;
+	PredictParams.DrawDebugTime = 5.f;
+	PredictParams.DrawDebugType = EDrawDebugTrace::ForDuration;
+	PredictParams.LaunchVelocity = GetActorForwardVector() * InitialSpeed;
+	PredictParams.MaxSimTime = 4.f;
+	PredictParams.ProjectileRadius = 5.f;
+	PredictParams.SimFrequency = 30.f;
+	PredictParams.StartLocation = GetActorLocation();
+	PredictParams.TraceChannel = ECollisionChannel::ECC_Visibility;
+	PredictParams.ActorsToIgnore.Add(this);
+	FPredictProjectilePathResult PredictResult;
+	UGameplayStatics::PredictProjectilePath(this, PredictParams, PredictResult);*/
+}
+
+#if WITH_EDITOR
+void AProjectileBullet::PostEditChangeProperty(FPropertyChangedEvent& Event)
+{
+	Super::PostEditChangeProperty(Event);
+
+	FName PropertyName = Event.Property ? Event.Property->GetFName() : NAME_None;
+	if (PropertyName == GET_MEMBER_NAME_CHECKED(AProjectileBullet, InitialSpeed))
+	{
+		if (ProjectileMovementComponent)
+		{
+			ProjectileMovementComponent->InitialSpeed = InitialSpeed;
+			ProjectileMovementComponent->MaxSpeed = InitialSpeed;
+		}
+	}
+}
+#endif
+
 void AProjectileBullet::OnHit(UPrimitiveComponent* HitComp, AActor* OtherActor, UPrimitiveComponent* OtherComp, FVector NormalImpulse, const FHitResult& Hit)
 {
-	Super::OnHit(HitComp, OtherActor, OtherComp, NormalImpulse, Hit);
+	Super::OnHit(HitComp, OtherActor, OtherComp, NormalImpulse, Hit); 
 }
 
 void AProjectileBullet::ApplyDamage(UPrimitiveComponent* HitComp, AActor* OtherActor, UPrimitiveComponent* OtherComp, FVector NormalImpulse, const FHitResult& Hit)
 {
 	Super::ApplyDamage(HitComp, OtherActor, OtherComp, NormalImpulse, Hit);
 
-	ACharacter* MyCharacter = Cast<ACharacter>(GetOwner());
+	AMyCharacter* MyCharacter = Cast<AMyCharacter>(GetOwner());
 	if (MyCharacter)
 	{
-		AController* MyController = MyCharacter->Controller;
+		AMyPlayerController* MyController = Cast<AMyPlayerController>(MyCharacter->Controller);
 		if (MyController)
 		{
-			UGameplayStatics::ApplyDamage(
-				OtherActor, 
-				Damage, 
-				MyController, 
-				this, 
-				UDamageType::StaticClass()
-			);
+			if (bUseServerSideRewind)
+			{
+				AMyCharacter* HitCharacter = Cast<AMyCharacter>(OtherActor);
+				if (HitCharacter && MyCharacter->GetLagCompensationComponent() && MyCharacter->IsLocallyControlled())
+				{
+					MyCharacter->GetLagCompensationComponent()->ProjectileServerScoreRequest(
+						HitCharacter,
+						TraceStart,
+						InitialVelocity,
+						MyController->GetServerTime() - MyController->SingleTripTime
+					);
+				}
+			}
+			else
+			{
+				if (HasAuthority() && MyCharacter->GetEquippedWeapon() && !MyCharacter->GetEquippedWeapon()->UseServerSideRewind())
+				{
+					FString HitBone = Hit.BoneName.ToString();
+					float DamageToCause = ((HitBone == FString("head") || HitBone == FString("Head")) ? HeadShotDamage : Damage);
+					UGameplayStatics::ApplyDamage(
+						OtherActor,
+						DamageToCause,
+						MyController,
+						MyCharacter->GetEquippedWeapon(),
+						UDamageType::StaticClass()
+					); 
+				}
+			}
 		}
 	}
 

@@ -4,13 +4,17 @@
 #include "MyHUD.h"
 #include "GameFramework/PlayerController.h"
 #include "Blueprint/UserWidget.h"
+#include "Blueprint/WidgetLayoutLibrary.h"
+#include "Components/HorizontalBox.h"
+#include "Components/CanvasPanelSlot.h"
 #include "../CyberSparta.h"
 #include "../PlayerController/MyPlayerController.h"
-#include "../HUD/AttributeWidget.h"
-#include "../HUD/WeaponWidget.h"
-#include "../HUD/GameStateWidget.h"
-#include "../HUD/AnnouncementWidget.h"
-#include "../HUD/SettlementWidget.h"
+#include "AttributeWidget.h"
+#include "WeaponWidget.h"
+#include "GameStateWidget.h"
+#include "AnnouncementWidget.h"
+#include "SettlementWidget.h"
+#include "KillAnnouncementWidget.h"
 
 void AMyHUD::BeginPlay()
 {
@@ -111,3 +115,45 @@ void AMyHUD::RemoveWidget(UUserWidget* Widget)
 	}
 }
 
+void AMyHUD::AddKillAnnouncement(FString AttackerName, FString VictimName)
+{
+	KillAnnouncementWidget = Cast<UKillAnnouncementWidget>(CreateAndAddWidget(KillAnnouncementWidgetClass));
+	if (KillAnnouncementWidget)
+	{
+		KillAnnouncementWidget->SetKillAnnouncementText(AttackerName, VictimName);
+		
+		for (auto Widget : KillAnnouncementWidgets)
+		{
+			if (Widget && Widget->AnnouncementBox)
+			{
+				UCanvasPanelSlot* CanvasSlot = UWidgetLayoutLibrary::SlotAsCanvasSlot(Widget->AnnouncementBox);
+				if (CanvasSlot)
+				{
+					FVector2D Position = CanvasSlot->GetPosition();
+					FVector2D NewPosition(CanvasSlot->GetPosition().X, Position.Y - CanvasSlot->GetSize().Y);
+					CanvasSlot->SetPosition(NewPosition);
+				}
+			}
+		}
+		
+		KillAnnouncementWidgets.Add(KillAnnouncementWidget);
+
+		FTimerHandle KillAnnouncementTimer;
+		FTimerDelegate KillAnnouncementDelegate;
+		KillAnnouncementDelegate.BindUFunction(this, FName("KillAnnouncementTimerFinished"), KillAnnouncementWidget);
+		GetWorldTimerManager().SetTimer(
+			KillAnnouncementTimer,
+			KillAnnouncementDelegate,
+			KillAnnouncementDuration,
+			false
+		);
+	}
+}
+
+void AMyHUD::KillAnnouncementTimerFinished(UKillAnnouncementWidget* WidgetToRemove)
+{
+	if (WidgetToRemove)
+	{
+		WidgetToRemove->RemoveFromParent();
+	}
+}

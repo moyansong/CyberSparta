@@ -19,11 +19,18 @@ public:
 
 	virtual void FireStart(const FVector& HitTarget) override;
 
-	virtual void SpawnProjectile(const FVector& HitTarget) override;
+	void HitScanFire(const FVector& HitTarget);
 
+	virtual void SpawnProjectile(const FVector& HitTarget, bool bProjectileUseServerSideRewind, bool bProjectileReplicates = true) override;
+
+	FORCEINLINE float GetDamage() const { return Damage; }
+	FORCEINLINE float GetHeadShotDamage() const { return HeadShotDamage; }
 private:
 	UPROPERTY(EditAnywhere, Category = Damage)
 	float Damage = 20.f;
+
+	UPROPERTY(EditAnywhere, Category = Damage)
+	float HeadShotDamage = 100.f;
 
 	UPROPERTY(EditAnywhere, Category = Emitter)
 	UParticleSystem* ImpactParticles;

@@ -35,9 +35,12 @@ void UMyAnimInstance::NativeUpdateAnimation(float DeltaTime)
 	EquippedWeapon = MyCharacter->GetEquippedWeapon();
 	bIsAiming = MyCharacter->IsAiming();
 	bIsAlive = MyCharacter->IsAlive();
-	bUseLeftHandIK = MyCharacter->GetCombatState() != ECombatState::ECS_Reloading && bIsAlive && !MyCharacter->GetDisableGameplay();
 	bUseAimOffset = MyCharacter->GetCombatState() != ECombatState::ECS_Reloading && bIsAlive && !MyCharacter->GetDisableGameplay();
 	bUseRightHandRotation = MyCharacter->GetCombatState() != ECombatState::ECS_Reloading && bIsAlive && !MyCharacter->GetDisableGameplay();
+	bUseLeftHandIK = bIsAlive && EquippedWeapon && 
+					 EquippedWeapon->UseLeftHandIK() &&
+					 !MyCharacter->GetDisableGameplay() && 
+					 MyCharacter->GetCombatState() != ECombatState::ECS_Reloading;
 
 	FRotator AimRotation = MyCharacter->GetBaseAimRotation();
 	FRotator MovementRotation = UKismetMathLibrary::MakeRotFromX(MyCharacter->GetVelocity());
@@ -103,6 +106,10 @@ void UMyAnimInstance::SetHandTransform(float DeltaTime)
 	}
 }
 
-void UMyAnimInstance::ChangeAnimation()
+void UMyAnimInstance::OnWeaponEquipped()
 {
+	EquippedWeapon = MyCharacter->GetEquippedWeapon();
+	if (!EquippedWeapon) return;
+
+	//if (EquippedWeapon->AS_Idle) AS_Idle = EquippedWeapon->AS_Idle;
 }
