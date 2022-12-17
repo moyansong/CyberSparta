@@ -55,8 +55,9 @@ void UAttributeComponent::IncreaseHealth(float HealthIncrement)
 	SetHealth(Health + HealthIncrement);
 }
 
-void UAttributeComponent::OnRep_Health(float LastHealth)
+void UAttributeComponent::OnRep_Health(float OldHealth)
 {
+	HealthChangedDelegate.Broadcast(GetOwner(), OldHealth, Health);
 	SetHUDHealth();
 	if (!IsAlive() && MyCharacter)
 	{
@@ -75,7 +76,7 @@ void UAttributeComponent::IncreaseShield(float ShieldIncrement)
 	SetShield(Shield + ShieldIncrement);
 }
 
-void UAttributeComponent::OnRep_Shield(float LastShield)
+void UAttributeComponent::OnRep_Shield(float OldShield)
 {
 	SetHUDShield();
 }
@@ -95,8 +96,8 @@ void UAttributeComponent::ReceiveDamage(AActor* DamageActor, float Damage, const
 	float ReceivedDamage = CalculateReceivedDamage(DamageActor, Damage, DamageType, InstigatorController, DamageCauser);
 	if (ReceivedDamage == 0.f) return;
 	
+	HealthChangedDelegate.Broadcast(GetOwner(), Health, Health - ReceivedDamage);
 	SetHealth(Health - ReceivedDamage);
-	OnHealthChanged.Broadcast(InstigatorController, DamageCauser, GetOwner(), this, Damage, Health);
 	if (!IsAlive() && MyCharacter)
 	{
 		Eliminate(DamageActor, InstigatorController, DamageCauser);

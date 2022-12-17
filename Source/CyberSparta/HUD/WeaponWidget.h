@@ -7,6 +7,9 @@
 #include "WeaponWidget.generated.h"
 
 class UTextBlock;
+class UTexture2D;
+class UImage;
+class AWeapon;
 
 UCLASS()
 class CYBERSPARTA_API UWeaponWidget : public UUserWidget
@@ -15,6 +18,11 @@ class CYBERSPARTA_API UWeaponWidget : public UUserWidget
 
 public:
 //------------------------------------------------Parameters--------------------------------------------------------------
+	void SetHUDWeaponImage(AWeapon* LastWeapon, AWeapon* Weapon);
+//------------------------------------------------Parameters--------------------------------------------------------------
 	UPROPERTY(meta = (BindWidget))
 	UTextBlock* AmmoText;
+
+	UPROPERTY(meta = (BindWidget))
+	UImage* WeaponImage;
 };

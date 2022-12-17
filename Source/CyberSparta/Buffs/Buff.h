@@ -98,7 +98,7 @@ private:
 	USphereComponent* SphereComponent;
 
 	UPROPERTY(VisibleAnywhere, Category = "Components")
-	UWidgetComponent* PickupWidgetComponent;
+	UWidgetComponent* InteractWidgetComponent;
 
 	UPROPERTY(VisibleAnywhere, Category = "Components")
 	UStaticMeshComponent* MeshComponent;

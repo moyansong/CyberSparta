@@ -218,7 +218,7 @@ void AMyPlayerController::InitializeInProgressWidget()
 {
 	SetHUDHealth();
 	SetHUDShield();
-	SetHUDWeaponAmmo();
+	SetHUDWeapon();
 	InitializeTeamScore();
 	MyPlayerState = MyPlayerState ? MyPlayerState :GetPlayerState<AMyPlayerState>();
 	if (MyPlayerState)
@@ -379,12 +379,12 @@ void AMyPlayerController::SetHUDRedTeamScore(int32 RedScore)
 	}
 }
 
-void AMyPlayerController::SetHUDWeaponAmmo()
+void AMyPlayerController::SetHUDWeapon()
 {
 	MyCharacter = Cast<AMyCharacter>(GetPawn());
 	if (MyCharacter && MyCharacter->GetCombatComponent())
 	{
-		MyCharacter->GetCombatComponent()->SetHUDWeaponAmmo();
+		MyCharacter->GetCombatComponent()->SetHUDWeapon();
 	}
 }
 

@@ -36,8 +36,14 @@ void UMyAnimInstance::NativeUpdateAnimation(float DeltaTime)
 	bIsAiming = MyCharacter->IsAiming();
 	bIsAlive = MyCharacter->IsAlive();
 	bUseAimOffset = MyCharacter->GetCombatState() != ECombatState::ECS_Reloading && bIsAlive && !MyCharacter->GetDisableGameplay();
-	bUseRightHandRotation = MyCharacter->GetCombatState() != ECombatState::ECS_Reloading && bIsAlive && !MyCharacter->GetDisableGameplay();
-	bUseLeftHandIK = bIsAlive && EquippedWeapon && 
+	bUseRightHandRotation = bIsAlive &&
+							bIsAiming &&
+							EquippedWeapon &&
+							EquippedWeapon->UseRightHandRotation() &&
+							!MyCharacter->GetDisableGameplay() &&
+							MyCharacter->GetCombatState() != ECombatState::ECS_Reloading;
+	bUseLeftHandIK = bIsAlive &&
+					 EquippedWeapon && 
 					 EquippedWeapon->UseLeftHandIK() &&
 					 !MyCharacter->GetDisableGameplay() && 
 					 MyCharacter->GetCombatState() != ECombatState::ECS_Reloading;

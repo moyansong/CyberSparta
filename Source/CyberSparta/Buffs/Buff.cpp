@@ -34,8 +34,8 @@ ABuff::ABuff()
 	BuffEffectComponent = CreateDefaultSubobject<UNiagaraComponent>(TEXT("PickupEffectComponent"));
 	BuffEffectComponent->SetupAttachment(RootComponent);
 
-	PickupWidgetComponent = CreateDefaultSubobject<UWidgetComponent>(TEXT("PickupWidget"));
-	PickupWidgetComponent->SetupAttachment(RootComponent);
+	InteractWidgetComponent = CreateDefaultSubobject<UWidgetComponent>(TEXT("InteractWidget"));
+	InteractWidgetComponent->SetupAttachment(RootComponent);
 }
 
 void ABuff::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
@@ -56,9 +56,9 @@ void ABuff::BeginPlay()
 		SphereComponent->OnComponentEndOverlap.AddDynamic(this, &ABuff::OnSphereEndOverlap);
 	}
 
-	if (PickupWidgetComponent)
+	if (InteractWidgetComponent)
 	{
-		PickupWidgetComponent->SetVisibility(false);
+		InteractWidgetComponent->SetVisibility(false);
 	}
 
 	if (BuffEffectComponent && WorldEffect)
@@ -101,9 +101,9 @@ void ABuff::SetSphereCollision(bool bCanOverlapWithPawn)
 
 void ABuff::SetInteractEffectVisibility(bool bVisibility)
 {
-	if (PickupWidgetComponent)
+	if (InteractWidgetComponent)
 	{
-		PickupWidgetComponent->SetVisibility(bVisibility);
+		InteractWidgetComponent->SetVisibility(bVisibility);
 	}
 }
 

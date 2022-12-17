@@ -45,7 +45,7 @@ private:
 	UPROPERTY(ReplicatedUsing = OnRep_Defeats)
 	int32 Defeats = 0;
 
-	UPROPERTY(ReplicatedUsing = OnRep_Team)
+	UPROPERTY(EditAnywhere, ReplicatedUsing = OnRep_Team)
 	ETeam Team = ETeam::ET_NoTeam;
 	UFUNCTION()
 	void OnRep_Team();

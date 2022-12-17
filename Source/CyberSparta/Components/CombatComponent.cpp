@@ -76,6 +76,10 @@ void UCombatComponent::SetCombatState(ECombatState State)
 {
 	CombatState = State;
 	OnStateChanged();
+	if (MyCharacter && !MyCharacter->HasAuthority())
+	{
+		ServerSetCombatState(State);
+	}
 }
 
 void UCombatComponent::ServerSetCombatState_Implementation(ECombatState State)
@@ -92,6 +96,12 @@ void UCombatComponent::OnStateChanged()
 {
 	switch (CombatState)
 	{
+	case ECombatState::ECS_Idle:
+		if (MyCharacter && EquippedWeapon)
+		{
+			MyCharacter->StopAnimMontage(EquippedWeapon->CharacterFireMontage);
+		}
+		break;
 	case ECombatState::ECS_Reloading:
 		SimulateReload();
 		break;
@@ -169,6 +179,8 @@ void UCombatComponent::RemoveWeapon(AWeapon* Weapon)
 		Weapons.Remove(Weapon);
 		WeaponClasses.Remove(Weapon->GetClass());
 		WeaponsNum = Weapons.Num();
+		EquippedWeapon = nullptr;
+		EquipWeapon(0);
 	}
 }
 
@@ -192,7 +204,7 @@ void UCombatComponent::SetIdleWeapon(AWeapon* Weapon)
 void UCombatComponent::EquipWeapon(int32 Value)
 {
 	MyCharacter = MyCharacter ? MyCharacter : Cast<AMyCharacter>(GetOwner());
-	if (!MyCharacter || CombatState == ECombatState::ECS_Firing) return;
+	if (!MyCharacter || CombatState != ECombatState::ECS_Idle) return;
 
 	if (Weapons.IsEmpty())
 	{
@@ -207,7 +219,11 @@ void UCombatComponent::EquipWeapon(int32 Value)
 	
 	// 为防止延迟先在客户端做一遍
 	CurrWeaponIndex = NewIndex;
-	if (EquippedWeapon) EquippedWeapon->SetWeaponState(EWeaponState::EWS_Idle);
+	if (EquippedWeapon)
+	{
+		EquippedWeapon->SetWeaponState(EWeaponState::EWS_Idle);
+		LastEquippedWeapon = EquippedWeapon;
+	}
 	EquippedWeapon = Weapons[CurrWeaponIndex];
 	if (EquippedWeapon)
 	{
@@ -216,10 +232,13 @@ void UCombatComponent::EquipWeapon(int32 Value)
 	}
 	MyCharacter->SetAnimationClass();
 
-	if (!MyCharacter->HasAuthority())
-	{
-		ServerEquipWeapon(Value);
-	}
+	if (MyCharacter->IsLocallyControlled()) LocalEquipWeapon();
+	if (!MyCharacter->HasAuthority()) ServerEquipWeapon(Value);
+}
+
+void UCombatComponent::LocalEquipWeapon()
+{
+	LastFireTime = -100.f;
 }
 
 void UCombatComponent::ServerEquipWeapon_Implementation(int32 Value)
@@ -227,10 +246,11 @@ void UCombatComponent::ServerEquipWeapon_Implementation(int32 Value)
 	EquipWeapon(Value);
 }
 
-void UCombatComponent::OnRep_EquippedWeapon()
+void UCombatComponent::OnRep_EquippedWeapon(AWeapon* LastWeapon)
 {
 	if (MyCharacter) MyCharacter->SetAnimationClass();
 	if (EquippedWeapon) EquippedWeapon->SetWeaponState(EWeaponState::EWS_Equipped);
+	if (LastWeapon) LastEquippedWeapon = LastWeapon; 
 }
 
 void UCombatComponent::OnRep_CurrWeaponIndex()
@@ -239,14 +259,13 @@ void UCombatComponent::OnRep_CurrWeaponIndex()
 
 void UCombatComponent::ThrowWeapon()
 {
-	if (!EquippedWeapon || !MyCharacter) return;
+	if (!EquippedWeapon || !MyCharacter || CombatState != ECombatState::ECS_Idle) return;
+
 	if (MyCharacter->HasAuthority())
 	{
 		FVector ThrowDirection = MyCharacter->GetFollowCamera() ? MyCharacter->GetFollowCamera()->GetForwardVector() : MyCharacter->GetActorForwardVector();
 		EquippedWeapon->Throw(ThrowDirection, 2000.f);
 		RemoveWeapon(EquippedWeapon);
-		EquippedWeapon = nullptr;
-		EquipWeapon(0);
 	}
 	else
 	{
@@ -261,8 +280,11 @@ void UCombatComponent::ServerThrowWeapon_Implementation()
 
 void UCombatComponent::SetIsAiming(bool bAiming)
 {
-	bIsAiming = bAiming;
-	if (MyCharacter) MyCharacter->SetMaxWalkSpeed(false);
+	bIsAiming = bAiming; 
+	if (MyCharacter && bIsAiming)
+	{
+		MyCharacter->SetMaxWalkSpeed(false);
+	}
 }
 
 void UCombatComponent::OnRep_bIsAiming()
@@ -278,7 +300,12 @@ void UCombatComponent::OnRep_bIsAiming()
 
 bool UCombatComponent::CanFire()
 {
-	return EquippedWeapon && EquippedWeapon->CanFire() && CombatState != ECombatState::ECS_Reloading && MyCharacter && !MyCharacter->GetDisableGameplay();
+	bool bCanFire = EquippedWeapon &&
+					EquippedWeapon->CanFire() &&
+					CombatState != ECombatState::ECS_Reloading &&
+					MyCharacter && !MyCharacter->GetDisableGameplay() &&
+					(EquippedWeapon->CanAutomaticFire() || GetWorld()->GetTimeSeconds() - LastFireTime >= EquippedWeapon->GetFireDelay());
+	return bCanFire;
 }
 
 void UCombatComponent::FireStart()
@@ -287,25 +314,52 @@ void UCombatComponent::FireStart()
 	
 	SetIsAiming(true);
 	Fire();// 按键Release过快可能导致定时器还没触发就关闭了，这里保证至少开火一次
-	MyCharacter->GetWorldTimerManager().SetTimer(
-		FireTimer,
-		this,
-		&UCombatComponent::Fire,
-		EquippedWeapon->GetFireDelay(),
-		EquippedWeapon->CanAutomaticFire(),
-		EquippedWeapon->GetFireDelay()
-	);
+	if (EquippedWeapon->CanAutomaticFire())
+	{
+		MyCharacter->GetWorldTimerManager().SetTimer(
+			FireTimer,
+			this,
+			&UCombatComponent::Fire,
+			EquippedWeapon->GetFireDelay(),
+			EquippedWeapon->CanAutomaticFire()
+		);
+	}
+	else
+	{
+		MyCharacter->GetWorldTimerManager().SetTimer(
+			FireTimer,
+			this,
+			&UCombatComponent::FireFinished,
+			EquippedWeapon->GetFireDelay(),
+			false
+		);
+	}
 }
 
 void UCombatComponent::FireStop()
 {
-	if (MyCharacter)
+	if (MyCharacter && EquippedWeapon)
 	{
-		MyCharacter->GetWorldTimerManager().ClearTimer(FireTimer);
+		EquippedWeapon->FireStop();
+		if (EquippedWeapon->CanAutomaticFire())
+		{
+			MyCharacter->GetWorldTimerManager().ClearTimer(FireTimer);
+			MyCharacter->GetWorldTimerManager().SetTimer(
+				FireTimer,
+				this,
+				&UCombatComponent::FireFinished,
+				EquippedWeapon->GetFireDelay(),
+				false
+			);
+		}
 	}
+}
+
+void UCombatComponent::FireFinished()
+{
 	if (CombatState == ECombatState::ECS_Firing)
 	{
-		ServerSetCombatState(ECombatState::ECS_Idle);
+		SetCombatState(ECombatState::ECS_Idle);
 	}
 }
 
@@ -321,13 +375,12 @@ void UCombatComponent::LocalFire(const FVector& HitTarget)
 {
 	SimulateFire();
 	EquippedWeapon->FireStart(HitTarget);
+	LastFireTime = GetWorld()->GetTimeSeconds();
 	CrosshairsFireFactor = FMath::Clamp(CrosshairsFireFactor + 2.f, 0.f, 5.f);
 }
 
 void UCombatComponent::SimulateFire()
 {
-	if (!CanFire()) return;
-
 	if (EquippedWeapon->CharacterFireMontage)
 	{
 		MyCharacter->PlayAnimMontage(EquippedWeapon->CharacterFireMontage);
@@ -365,7 +418,7 @@ void UCombatComponent::TargetStart()
 	if (!MyCharacter || !EquippedWeapon || !bIsAiming) return;
 
 	ARangedWeapon* RangedWeapon = Cast<ARangedWeapon>(EquippedWeapon);
-	if (RangedWeapon)
+	if (RangedWeapon && RangedWeapon->CanTarget())
 	{
 		RangedWeapon->TargetStart();
 	}
@@ -376,7 +429,7 @@ void UCombatComponent::TargetStop()
 	if (!MyCharacter || !EquippedWeapon || !bIsAiming) return;
 
 	ARangedWeapon* RangedWeapon = Cast<ARangedWeapon>(EquippedWeapon);
-	if (RangedWeapon)
+	if (RangedWeapon && RangedWeapon->CanTarget())
 	{
 		RangedWeapon->TargetStop();
 	}
@@ -402,6 +455,16 @@ void UCombatComponent::ReloadStop()
 void UCombatComponent::ServerReloadStart_Implementation()
 {
 	SetCombatState(ECombatState::ECS_Reloading);
+	if (EquippedWeapon)
+	{
+		MyCharacter->GetWorldTimerManager().SetTimer(
+			ReloadTimer,
+			this,
+			&UCombatComponent::ReloadFinished,
+			EquippedWeapon->GetReloadDuration(),
+			false
+		);
+	}
 }
 
 void UCombatComponent::SimulateReload()
@@ -457,6 +520,12 @@ void UCombatComponent::UpdateHUD(AMyHUD* PlayerHUD)
 	}
 }
 
+void UCombatComponent::SetHUDWeapon()
+{
+	SetHUDWeaponAmmo(); 
+	SetHUDWeaponImage();
+}
+
 void UCombatComponent::SetHUDWeaponAmmo()
 {
 	if (!IsHUDVaild()) return;
@@ -468,6 +537,13 @@ void UCombatComponent::SetHUDWeaponAmmo()
 		FString AmmoString = FString::Printf(TEXT("%d / %d"), Ammo, MaxAmmo);
 		WeaponWidget->AmmoText->SetText(FText::FromString(AmmoString));
 	}
+}
+
+void UCombatComponent::SetHUDWeaponImage()
+{
+	if (!IsHUDVaild()) return;
+
+	WeaponWidget->SetHUDWeaponImage(LastEquippedWeapon, EquippedWeapon);
 }
 
 void UCombatComponent::SetHUDCrosshairs(float DeltaTime)
@@ -596,8 +672,5 @@ void UCombatComponent::KillReward()
 
 void UCombatComponent::OnMontageEnded(UAnimMontage* Montage, bool bInterrupted)
 {
-	if (EquippedWeapon && Montage == EquippedWeapon->ReloadMontage)
-	{
-		ReloadFinished();
-	}
+	
 }

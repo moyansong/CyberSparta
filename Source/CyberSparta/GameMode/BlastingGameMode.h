@@ -7,6 +7,7 @@
 #include "BlastingGameMode.generated.h"
 
 class ABlastingBomb;
+class ABlastingZone;
 
 UCLASS()
 class CYBERSPARTA_API ABlastingGameMode : public ATeamGameMode
@@ -18,8 +19,26 @@ public:
 	virtual void RequestRespawn(ACharacter* ElimmedCharacter, AController* ElimmedController);
 
 	virtual void HandleMatchHasStarted() override;
+	virtual void HandleMatchHasSettled() override;
 
-//-----------------------------------------------Functions-----------------------------------------------------
+	void DistributeBlastingBomb();
+
+//-----------------------------------------------Parameters-----------------------------------------------------
 	UPROPERTY(EditAnywhere, Category = Parameter)
 	TSubclassOf<ABlastingBomb> BlastingBombClass;
+
+	ABlastingBomb* BlastingBomb;
+
+	UPROPERTY(EditAnywhere, Category = Parameter)
+	TSubclassOf<ABlastingZone> BlastingZoneClass;
+
+	ABlastingZone* BlastingZone;
+
+	UPROPERTY(EditAnywhere, Category = Parameter)
+	FVector BlastingZoneCenter = FVector::ZeroVector;
+
+	UPROPERTY(EditAnywhere, Category = Parameter)
+	float BlastingZoneRadius = 1000.f;
+
+	FTimerHandle BlastingTimer;
 };

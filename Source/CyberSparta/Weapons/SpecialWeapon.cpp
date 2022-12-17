@@ -22,7 +22,7 @@ ASpecialWeapon::ASpecialWeapon()
 	StaticMeshComponent->SetCustomDepthStencilValue(CUSTOM_DEPTH_BLUE);
 
 	GetSphere()->SetupAttachment(StaticMeshComponent);
-	GetPickupWidget()->SetupAttachment(StaticMeshComponent);
+	GetInteractWidget()->SetupAttachment(StaticMeshComponent);
 }
 
 void ASpecialWeapon::Drop()
@@ -59,11 +59,7 @@ void ASpecialWeapon::OnDropped()
 {
 	if (!GetSphere() || !StaticMeshComponent) return;
 
-	if (HasAuthority())
-	{
-		GetSphere()->SetCollisionEnabled(ECollisionEnabled::QueryOnly);
-		GetSphere()->SetCollisionResponseToChannel(ECollisionChannel::ECC_Pawn, ECollisionResponse::ECR_Overlap);
-	}
+	SetSphereCollision(HasAuthority());
 	StaticMeshComponent->SetVisibility(true);
 	StaticMeshComponent->SetRenderCustomDepth(true);
 	SetMeshSimulatePhysics(StaticMeshComponent, true);
@@ -72,8 +68,8 @@ void ASpecialWeapon::OnDropped()
 void ASpecialWeapon::OnIdled()
 {
 	Super::OnIdled();
-
 	if (!StaticMeshComponent) return;
+
 	StaticMeshComponent->SetVisibility(false);
 	StaticMeshComponent->SetRenderCustomDepth(false);
 	SetMeshSimulatePhysics(StaticMeshComponent, false);

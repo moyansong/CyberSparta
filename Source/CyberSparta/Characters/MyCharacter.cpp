@@ -202,7 +202,7 @@ void AMyCharacter::OnControllerInitialized()
 	}
 	if (CombatComponent)
 	{
-		CombatComponent->SetHUDWeaponAmmo();
+		CombatComponent->SetHUDWeapon();
 	}
 }
 
@@ -271,7 +271,14 @@ void AMyCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputCompone
 
 void AMyCharacter::Test()
 {
-	//LagCompensationComponent->Test();
+	if (GetCombatState() == ECombatState::ECS_Idle)
+	{
+		Cout(this, "Idle");
+	}
+	else if (GetCombatState() == ECombatState::ECS_Firing)
+	{
+		Cout(this, "Firing");
+	}
 }
 
 void AMyCharacter::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
@@ -565,6 +572,11 @@ void AMyCharacter::ThrowWeaponStop()
 
 void AMyCharacter::RunStart()
 {
+	UnCrouch();
+	if (CombatComponent)
+	{
+		CombatComponent->SetIsAiming(false);
+	}
 	SetMaxWalkSpeed(true);
 	if (!HasAuthority())
 	{
@@ -574,6 +586,10 @@ void AMyCharacter::RunStart()
 
 void AMyCharacter::RunStop()
 {
+	if (CombatComponent)
+	{
+		CombatComponent->SetIsAiming(true);
+	}
 	SetMaxWalkSpeed(false);
 	if (!HasAuthority())
 	{
@@ -583,12 +599,12 @@ void AMyCharacter::RunStop()
 
 void AMyCharacter::ServerRunStart_Implementation()
 {
-	SetMaxWalkSpeed(true);
+	RunStart();
 }
 
 void AMyCharacter::ServerRunStop_Implementation()
 {
-	SetMaxWalkSpeed(false);
+	RunStop();
 }
 
 void AMyCharacter::EquipWeapon(float Value)
@@ -612,7 +628,14 @@ bool AMyCharacter::IsWeaponEquipped()
 
 void AMyCharacter::SimulateHit(const FRotator& HitDirection, const FVector& HitLocation)
 {
-	PlayHitReactMontage(HitDirection, HitLocation);
+	float HitDirectionYaw = HitDirection.Yaw - GetActorRotation().Yaw;
+	FString HitDirectionString(TEXT("HitByFwd"));
+	if (HitDirectionYaw > 45.f && HitDirectionYaw <= 135.f) HitDirectionString = FString(TEXT("HitByLt"));
+	else if (HitDirectionYaw > 135.f || HitDirectionYaw <= -135.f) HitDirectionString = FString(TEXT("HitByFwd"));
+	else if (HitDirectionYaw > -135.f && HitDirectionYaw  <= -45.f) HitDirectionString = FString(TEXT("HitByRt"));
+	else if (HitDirectionYaw > -45.f && HitDirectionYaw <= 45.f) HitDirectionString = FString(TEXT("HitByBwd"));
+	
+	PlayHitReactMontage(FName(*HitDirectionString));
 }
 
 void AMyCharacter::MulticastHit_Implementation(const FRotator& HitDirection, const FVector_NetQuantize& HitLocation)
@@ -620,16 +643,15 @@ void AMyCharacter::MulticastHit_Implementation(const FRotator& HitDirection, con
 	SimulateHit(HitDirection, HitLocation);
 }
 
-void AMyCharacter::PlayHitReactMontage(const FRotator& HitDirection, const FVector& HitLocation)
+void AMyCharacter::PlayHitReactMontage(FName SectionName)
 {
-	if (!IsWeaponEquipped() || !GetMesh()) return;
-
+	if (!IsWeaponEquipped() || !GetMesh() || !GetCharacterMovement() || GetCharacterMovement()->Velocity.Size() > 10.f) return;
+	
 	UAnimInstance* AnimInstance = GetMesh()->GetAnimInstance();
 	UAnimMontage* HitReactMontage = GetEquippedWeapon()->HitReactMontage;
 	if (AnimInstance && HitReactMontage)
 	{
 		AnimInstance->Montage_Play(HitReactMontage);
-		FName SectionName("HitByFwd");
 		AnimInstance->Montage_JumpToSection(SectionName);
 	}
 }
@@ -762,7 +784,8 @@ void AMyCharacter::SetTeam(ETeam Team)
 
 ETeam AMyCharacter::GetTeam()
 {
-	MyPlayerState = MyPlayerState ? MyPlayerState : GetPlayerState<AMyPlayerState>();
+	// MyPlayerState = MyPlayerState ? MyPlayerState : GetPlayerState<AMyPlayerState>();
+	// 不进行上一行的原因是，有时过早的调用GetTeam会导致一些bug
 	return MyPlayerState ? MyPlayerState->GetTeam() : ETeam::ET_NoTeam;
 }
 
@@ -812,3 +835,4 @@ void AMyCharacter::OnMontageEnded(UAnimMontage* Montage, bool bInterrupted)
 {
 	if (CombatComponent) CombatComponent->OnMontageEnded(Montage, bInterrupted);
 }
+

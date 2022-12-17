@@ -2,12 +2,15 @@
 
 
 #include "BlastingGameMode.h"
+#include "DrawDebugHelpers.h"
+#include "TimerManager.h"
 #include "../CyberSparta.h"
 #include "../Characters/MyCharacter.h"
 #include "../Components/CombatComponent.h"
 #include "../GameStates/MyGameState.h"
 #include "../PlayerStates/MyPlayerState.h"
 #include "../Weapons/BlastingBomb.h"
+#include "../Game/BlastingZone.h"
 
 void ABlastingGameMode::RequestRespawn(ACharacter* ElimmedCharacter, AController* ElimmedController)
 {
@@ -18,6 +21,41 @@ void ABlastingGameMode::HandleMatchHasStarted()
 {
 	Super::HandleMatchHasStarted();
 
+	// 生成BlastingZone
+	if (BlastingZoneClass)
+	{
+		FActorSpawnParameters ZoneSpawnParams;
+
+		BlastingZone = GetWorld()->SpawnActor<ABlastingZone>(
+			BlastingZoneClass,
+			BlastingZoneCenter,
+			FRotator::ZeroRotator,
+			ZoneSpawnParams
+		);
+		if (BlastingZone)
+		{
+			DrawDebugSphere(
+				GetWorld(),
+				BlastingZoneCenter,
+				BlastingZoneRadius,
+				120,
+				FColor::Red,
+				false,
+				MatchTime
+			); 
+		}
+	}
+
+	DistributeBlastingBomb();
+}
+
+void ABlastingGameMode::HandleMatchHasSettled()
+{
+	
+}
+
+void ABlastingGameMode::DistributeBlastingBomb()
+{
 	// 挑选一个红队成员，让他有个炸弹
 	MyGameState = MyGameState ? MyGameState : GetGameState<AMyGameState>();
 	if (MyGameState)
@@ -28,17 +66,18 @@ void ABlastingGameMode::HandleMatchHasStarted()
 			AMyCharacter* ChosenCharacter = Cast<AMyCharacter>(ChosenPlayer->GetPawn());
 			if (ChosenCharacter && ChosenCharacter->GetCombatComponent())
 			{
-				FActorSpawnParameters SpawnParams;
+				FActorSpawnParameters BombSpawnParams;
 
-				ABlastingBomb* BlastingBomb = GetWorld()->SpawnActor<ABlastingBomb>(
+				BlastingBomb = GetWorld()->SpawnActor<ABlastingBomb>(
 					BlastingBombClass,
 					FVector(0.f, 0.f, 100.f),
 					FRotator::ZeroRotator,
-					SpawnParams
-				);
+					BombSpawnParams
+					);
 				if (BlastingBomb)
 				{
 					ChosenCharacter->GetCombatComponent()->AddWeapon(BlastingBomb);
+					BlastingBomb->Initialize(BlastingZoneCenter, BlastingZoneRadius);
 				}
 			}
 		}

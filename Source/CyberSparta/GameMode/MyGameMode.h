@@ -26,9 +26,12 @@ protected:
 	virtual void BeginPlay() override;
 	virtual void OnMatchStateSet() override;
 
+	// 结算阶段
+	virtual void HandleMatchHasSettled();
 public:
 	AMyGameMode();
 	virtual void Tick(float DeltaTime) override;
+	virtual void SetMatchState(FName NewState) override;
 
 	// 玩家淘汰
 	virtual void PlayerEliminated(AMyCharacter* ElimmedCharacter, AMyPlayerController* AttackerController, AMyPlayerController* VictimController);

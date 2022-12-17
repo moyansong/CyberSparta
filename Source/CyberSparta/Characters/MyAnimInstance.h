@@ -58,8 +58,9 @@ private:
 	UPROPERTY(BlueprintReadOnly, Category = Movement, meta = (AllowPrivateAccess = "true"))
 	float Direction;
 
+	//身体的倾斜度
 	UPROPERTY(BlueprintReadOnly, Category = Movement, meta = (AllowPrivateAccess = "true"))
-	float Lean;	//身体的倾斜度
+	float Lean;	
 
 	UPROPERTY(BlueprintReadOnly, Category = Movement, meta = (AllowPrivateAccess = "true"))
 	float AO_Yaw;
@@ -67,17 +68,19 @@ private:
 	UPROPERTY(BlueprintReadOnly, Category = Movement, meta = (AllowPrivateAccess = "true"))
 	float AO_Pitch;
 
+	// 拿枪时左手的位置,确保你的武器有个LeftHandSocket
 	UPROPERTY(BlueprintReadOnly, Category = Movement, meta = (AllowPrivateAccess = "true"))
-	FTransform LeftHandTransform; // 拿枪时左手的位置,确保你的武器有个LeftHandSocket
+	FTransform LeftHandTransform; 
+
+	// 旋转右手使得枪口指向准星
+	UPROPERTY(BlueprintReadOnly, Category = Movement, meta = (AllowPrivateAccess = "true"))
+	FRotator RightHandRotation;
 
 	UPROPERTY(BlueprintReadOnly, Category = Movement, meta = (AllowPrivateAccess = "true"))
-	FRotator RightHandRotation;	// 旋转右手使得枪口指向准星
+	bool bUseLeftHandIK; 
 
 	UPROPERTY(BlueprintReadOnly, Category = Movement, meta = (AllowPrivateAccess = "true"))
-	bool bUseLeftHandIK; // 换弹时左手不用放在枪上
-
-	UPROPERTY(BlueprintReadOnly, Category = Movement, meta = (AllowPrivateAccess = "true"))
-	bool bUseRightHandRotation; // 换弹时不用旋转右手
+	bool bUseRightHandRotation; 
 
 	UPROPERTY(BlueprintReadOnly, Category = Movement, meta = (AllowPrivateAccess = "true"))
 	bool bUseAimOffset;

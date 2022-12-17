@@ -28,20 +28,6 @@ void AMyGameMode::BeginPlay()
 	LevelStartingTime = GetWorld()->GetTimeSeconds();
 }
 
-void AMyGameMode::OnMatchStateSet()
-{
-	Super::OnMatchStateSet();
-
-	for (FConstPlayerControllerIterator It = GetWorld()->GetPlayerControllerIterator(); It; ++It)
-	{
-		AMyPlayerController* PlayerController = Cast<AMyPlayerController>(*It);
-		if (PlayerController)
-		{
-			PlayerController->OnMatchStateSet(MatchState, bIsTeamMatch);
-		}
-	}
-}
-
 void AMyGameMode::Tick(float DeltaTime)
 {
 	Super::Tick(DeltaTime);
@@ -70,6 +56,33 @@ void AMyGameMode::Tick(float DeltaTime)
 			RestartGame();// 只有打包的游戏或者Launch Game里才能生效，编辑器里没效果，LaunchGame里可以用命令行输入Servertravel xxMap,因为设定了人数不够不会传送到对战地图
 		}
 	}
+}
+
+void AMyGameMode::SetMatchState(FName NewState)
+{
+	Super::SetMatchState(NewState);
+}
+
+void AMyGameMode::OnMatchStateSet()
+{
+	Super::OnMatchStateSet();
+
+	for (FConstPlayerControllerIterator It = GetWorld()->GetPlayerControllerIterator(); It; ++It)
+	{
+		AMyPlayerController* PlayerController = Cast<AMyPlayerController>(*It);
+		if (PlayerController)
+		{
+			PlayerController->OnMatchStateSet(MatchState, bIsTeamMatch);
+		}
+	}
+	if (MatchState == MatchState::Settlement)
+	{
+		HandleMatchHasSettled();
+	}
+}
+
+void AMyGameMode::HandleMatchHasSettled()
+{
 }
 
 void AMyGameMode::PlayerEliminated(AMyCharacter* ElimmedCharacter, AMyPlayerController* AttackerController, AMyPlayerController* VictimController)

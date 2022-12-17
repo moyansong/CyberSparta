@@ -106,9 +106,9 @@ void AProjectile::OnHit(UPrimitiveComponent* HitComp, AActor* OtherActor, UPrimi
 
 void AProjectile::SimulateHit()
 {
-	if (ImpactParticles)
+	if (ImpactEffect)
 	{
-		UGameplayStatics::SpawnEmitterAtLocation(GetWorld(), ImpactParticles, GetActorTransform());
+		UGameplayStatics::SpawnEmitterAtLocation(GetWorld(), ImpactEffect, GetActorTransform());
 	}
 	if (ImpactSound)
 	{

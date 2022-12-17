@@ -114,7 +114,7 @@ public:
 	void SimulateHit(const FRotator& HitDirection = FRotator::ZeroRotator, const FVector& HitLocation = FVector::ZeroVector);
 
 	UFUNCTION(BlueprintCallable)
-	void PlayHitReactMontage(const FRotator& HitDirection = FRotator::ZeroRotator, const FVector& HitLocation = FVector::ZeroVector);
+	void PlayHitReactMontage(FName SectionName);
 
 	UFUNCTION()
 	void ReceiveDamage(AActor* DamageActor, float Damage, const UDamageType* DamageType, AController* InstigatorController, AActor* DamageCauser);
@@ -283,16 +283,18 @@ protected:
 	UPROPERTY()
 	AMyPlayerState* MyPlayerState;
 	
+	// 与角色重叠的Actor，可能发生互动
 	UPROPERTY(ReplicatedUsing = OnRep_OverlappingActor)
-	AActor* OverlappingActor; // 与角色重叠的Actor，可能发生互动
+	AActor* OverlappingActor; 
 	UFUNCTION()
 	void OnRep_OverlappingActor(AActor* LastActor);// LastActor是OverlappingActor还未复制时的值
 
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = Input)
 	float TurnRateGamepad;
 
+	// 相机与人的距离小于这个就会把人物隐藏
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = Camera)
-	float CameraThreshold = 200.f; // 相机距离人距离小于这个就会把人物隐藏
+	float CameraThreshold = 200.f; 
 
 	// 是否广播人物的动画和特效，根据Ping决定
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = Net)
@@ -333,5 +335,4 @@ public:
 
 //------------------------------------------Delegates----------------------------------------------------------
 	FOnLeftGame OnLeftGame;
-
 };

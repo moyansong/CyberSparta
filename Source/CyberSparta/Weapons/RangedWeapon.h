@@ -41,6 +41,7 @@ public:
 	void InterpTargetFOV(float DeltaTime);
 
 	FORCEINLINE bool IsTargeting() const { return bIsTargeting; }
+	FORCEINLINE bool CanTarget() const { return bCanTarget; }
 
 	virtual	void Equip() override;
 
@@ -49,7 +50,7 @@ public:
 protected:
 //--------------------------------------------Parameters---------------------------------------------------------
 	UPROPERTY(EditAnywhere, Category = Projectile)
-	TSubclassOf<AProjectile> ProjectileClass;	// 在Server上产生的子弹，需要复制
+	TSubclassOf<AProjectile> ProjectileClass;	
 
 	UPROPERTY(EditAnywhere, Category = Projectile)
 	TSubclassOf<AShellCase> ShellCaseClass;
@@ -69,5 +70,7 @@ protected:
 	UPROPERTY(VisibleAnywhere, Category = Parameter)
 	bool bIsTargeting = false;
 
+	UPROPERTY(VisibleAnywhere, Category = Parameter)
+	bool bCanTarget = true;
 private:
 };

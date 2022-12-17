@@ -91,16 +91,15 @@ protected:
 
 	UPROPERTY(EditAnywhere, Category = Speed)
 	float InitialSpeed = 15000.f;
-//------------------------------------------Emitters----------------------------------------------------------
-	UPROPERTY(EditAnywhere, Category = Emitter)
-	UParticleSystem* Tracer; // 弹道轨迹特效
+//------------------------------------------Effects----------------------------------------------------------
+	 // 弹道轨迹特效
+	UPROPERTY(EditAnywhere, Category = Effect)
+	UParticleSystem* Tracer;
 
-	UPROPERTY(EditAnywhere, Category = Emitter)
-	UParticleSystem* ImpactParticles;
+	UPROPERTY(EditAnywhere, Category = Effect)
+	UParticleSystem* ImpactEffect;
 
 //------------------------------------------Sounds----------------------------------------------------------
 	UPROPERTY(EditAnywhere, Category = Sound)
 	USoundCue* ImpactSound;
-
-
 };

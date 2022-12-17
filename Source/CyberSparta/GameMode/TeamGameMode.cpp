@@ -93,3 +93,8 @@ void ATeamGameMode::HandleMatchHasStarted()
 		}
 	}
 }
+
+void ATeamGameMode::HandleMatchHasSettled()
+{
+	Super::HandleMatchHasSettled();
+}

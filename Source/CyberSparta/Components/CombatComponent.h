@@ -15,6 +15,7 @@ class UAnimMontage;
 class AMyPlayerController;
 class AMyHUD;
 class UWeaponWidget;
+class UTexture2D;
 
 UCLASS( ClassGroup=(Custom), meta=(BlueprintSpawnableComponent) )
 class CYBERSPARTA_API UCombatComponent : public UActorComponent
@@ -30,6 +31,8 @@ public:
 	UFUNCTION()
 	void EquipWeapon(int32 Value); // 在Server和Client都会调用
 
+	void LocalEquipWeapon();
+
 	UFUNCTION()
 	void ThrowWeapon();
  
@@ -43,6 +46,8 @@ public:
 	void Fire();
 	UFUNCTION()
 	void LocalFire(const FVector& HitTarget);
+	UFUNCTION()
+	void FireFinished();
 
 	// 该函数只模拟开火，生成动画特效之类的，不生成子弹
 	UFUNCTION(BlueprintCallable)
@@ -95,7 +100,11 @@ public:
 
 	void SetIdleWeapon(AWeapon* Weapon);
 
+	void SetHUDWeapon();
+
 	void SetHUDWeaponAmmo();
+
+	void SetHUDWeaponImage();
 
 	bool IsHUDVaild();
 
@@ -143,7 +152,9 @@ private:
 	UPROPERTY(ReplicatedUsing = OnRep_EquippedWeapon)
 	AWeapon* EquippedWeapon;
 	UFUNCTION()
-	void OnRep_EquippedWeapon();
+	void OnRep_EquippedWeapon(AWeapon* LastWeapon);
+
+	AWeapon* LastEquippedWeapon;
 
 	UPROPERTY(Replicated, EditAnywhere, Category = Weapon)
 	TArray<TSubclassOf<AWeapon>> WeaponClasses;
@@ -170,7 +181,7 @@ private:
 	UFUNCTION()
 	void OnRep_bIsAiming();
 
-	bool bCanFire = true;
+	float LastFireTime = -100.f;
 
 	UPROPERTY(EditAnywhere, Category = Parameters)
 	bool bShouldAutomaticReload = true;
@@ -188,6 +199,7 @@ private:
 	FHUDPackage HUDPackage;
 
 	FTimerHandle FireTimer;
+	FTimerHandle ReloadTimer;
 	FTimerHandle AutomaticReloadTimer;
 
 };

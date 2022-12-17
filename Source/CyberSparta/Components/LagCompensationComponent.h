@@ -53,6 +53,18 @@ struct FServerSideRewindResult
 	bool bHeadShot;	// 是否打中头
 };
 
+USTRUCT(BlueprintType)
+struct FShotgunServerSideRewindResult
+{
+	GENERATED_BODY()
+
+	UPROPERTY()
+	TMap<AMyCharacter*, uint32> HeadShots;// 每个角色打中身体的次数
+
+	UPROPERTY()
+	TMap<AMyCharacter*, uint32> BodyShots;// 每个角色打中头的次数
+};
+
 UCLASS( ClassGroup=(Custom), meta=(BlueprintSpawnableComponent) )
 class CYBERSPARTA_API ULagCompensationComponent : public UActorComponent
 {
@@ -69,9 +81,13 @@ public:
 	void ShowFramePackage(const FFramePackage& Package, const FColor& Color = FColor::Red);
 
 	FFramePackage GetFrameToCheck(AMyCharacter* HitCharacter, float HitTime);
+
 	// HitCharacter是被打的Character，这几个参数都是客户端传上来的,找到对应FFramePackage在调用Confirm
 	// 仅供Hitscan武器调用
 	FServerSideRewindResult ServerSideRewind(AMyCharacter* HitCharacter, const FVector_NetQuantize& TraceStart, const FVector_NetQuantize& HitLocation, float HitTime);
+
+	// Shotgun用的
+	FShotgunServerSideRewindResult ShotgunServerSideRewind(const TArray<AMyCharacter*>& HitCharacters, const FVector_NetQuantize& TraceStart, const TArray<FVector_NetQuantize>& HitLocations, float HitTime);
 
 	// Projectile用的
 	FServerSideRewindResult ProjectileServerSideRewind(AMyCharacter* HitCharacter, const FVector_NetQuantize& TraceStart, const FVector_NetQuantize100& InitialVelocity, float HitTime);
@@ -79,6 +95,9 @@ public:
 	// 外部调用，检查是否打中人，打中则直接施加伤害
 	UFUNCTION(Server, Reliable)
 	void ServerScoreRequest(AMyCharacter* HitCharacter, const FVector_NetQuantize& TraceStart, const FVector_NetQuantize& HitLocation, float HitTime, AWeapon* DamageCauser);
+
+	UFUNCTION(Server, Reliable)
+	void ShotgunServerScoreRequest(const TArray<AMyCharacter*>& HitCharacters, const FVector_NetQuantize& TraceStart, const TArray<FVector_NetQuantize>& HitLocations, float HitTime, AWeapon* DamageCauser);
 
 	UFUNCTION(Server, Reliable)
 	void ProjectileServerScoreRequest(AMyCharacter* HitCharacter, const FVector_NetQuantize& TraceStart, const FVector_NetQuantize100& InitialVelocity, float HitTime);
@@ -92,6 +111,8 @@ protected:
 
 	// 根据Package信息确定HitCharacter是否被打中（LineTrace）,HitscanWeapon用
 	FServerSideRewindResult ConfirmHit(const FFramePackage& Package, AMyCharacter* HitCharacter, const FVector_NetQuantize& TraceStart, const FVector_NetQuantize& HitLocation);
+
+	FShotgunServerSideRewindResult ShotgunConfirmHit(const TArray<FFramePackage>& Packages, const FVector_NetQuantize& TraceStart, const TArray<FVector_NetQuantize>& HitLocations);
 
 	// 根据Package信息确定HitCharacter是否被打中（子弹轨迹预测PredictProjectilePath）,子弹用
 	FServerSideRewindResult ProjectileConfirmHit(const FFramePackage& Package, AMyCharacter* HitCharacter, const FVector_NetQuantize& TraceStart, const FVector_NetQuantize100& InitialVelocity, float HitTime);

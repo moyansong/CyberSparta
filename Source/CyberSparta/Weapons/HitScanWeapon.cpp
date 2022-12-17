@@ -4,43 +4,34 @@
 #include "HitScanWeapon.h"
 #include "Engine/SkeletalMeshSocket.h"
 #include "Kismet/GameplayStatics.h"
+#include "Kismet/KismetMathLibrary.h"
+#include "particles/ParticleSystemComponent.h"
+#include "DrawDebugHelpers.h"
+#include "Sound/SoundCue.h"
+#include "WeaponTypes.h"
+#include "../CyberSparta.h"
 #include "../Characters/MyCharacter.h"
 #include "../PlayerController/MyPlayerController.h"
 #include "../Components/LagCompensationComponent.h"
 
 void AHitScanWeapon::FireStart(const FVector& HitTarget)
 {
-	Super::FireStart(HitTarget);
-
-	if (MyCharacter && MyCharacter->IsLocallyControlled())
-	{
-		HitScanFire(HitTarget);
-	}
-}
-
-void AHitScanWeapon::HitScanFire(const FVector& HitTarget)
-{
-	if (!MyCharacter || !MyController) return;
+	AWeapon::FireStart(HitTarget);
 
 	const USkeletalMeshSocket* MuzzleSocket = GetMesh()->GetSocketByName("Muzzle");
-	if (MuzzleSocket)
+	if (MuzzleSocket && MyCharacter)
 	{
 		FTransform SocketTransform = MuzzleSocket->GetSocketTransform(GetMesh());
 		FVector Start = SocketTransform.GetLocation();
-		FVector End = Start + (HitTarget - Start) * 1.25f;
 
 		FHitResult FireHit;
-		UWorld* World = GetWorld();
-		if (World)
+		WeaponTraceHit(Start, HitTarget, FireHit);
+		SimulateHit(FireHit);
+
+		AMyCharacter* HitCharacter = Cast<AMyCharacter>(FireHit.GetActor());
+		if (bUseServerSideRewind)
 		{
-			World->LineTraceSingleByChannel(
-				FireHit,
-				Start,
-				End,
-				ECollisionChannel::ECC_Visibility
-			);
-			AMyCharacter* HitCharacter = Cast<AMyCharacter>(FireHit.GetActor());
-			if (HitCharacter)
+			if (HitCharacter && MyCharacter->IsLocallyControlled() && MyController)
 			{
 				MyCharacter->GetLagCompensationComponent()->ServerScoreRequest(
 					HitCharacter,
@@ -51,11 +42,82 @@ void AHitScanWeapon::HitScanFire(const FVector& HitTarget)
 				);
 			}
 		}
+		else
+		{
+			if (HasAuthority())
+			{
+				// 直接施加伤害
+			}
+		}
 	}
 }
 
-void AHitScanWeapon::SpawnProjectile(const FVector& HitTarget, bool bProjectileUseServerSideRewind, bool bProjectileReplicates)
+FVector AHitScanWeapon::TraceEndWithScatter(const FVector& TraceStart, const FVector& HitTarget)
 {
-	// 什么都不做，不产生子弹
+	FVector ToTargetNormalized = (HitTarget - TraceStart).GetSafeNormal();
+	FVector SphereCenter = TraceStart + ToTargetNormalized * SphereDistance;
+	FVector RandVector = UKismetMathLibrary::RandomUnitVector() * FMath::FRandRange(0.f, SphereRadius);
+	FVector EndLocation = SphereCenter + RandVector;
+	FVector ToEndLocation = EndLocation - TraceStart;
+
+	//DrawDebugSphere(GetWorld(), EndLocation, 4.f, 12, FColor::Blue, true);
+	//DrawDebugSphere(GetWorld(), SphereCenter, SphereRadius, 12, FColor::Red, true);
+	//DrawDebugLine(GetWorld(), TraceStart, FVector(TraceStart + ToEndLocation * TRACE_LENGTH / ToEndLocation.Size()), FColor::Cyan, true);
+
+	return FVector(TraceStart + ToEndLocation * TRACE_LENGTH / ToEndLocation.Size());
 }
 
+void AHitScanWeapon::WeaponTraceHit(const FVector& TraceStart, const FVector& HitTarget, FHitResult& OutHit)
+{
+	UWorld* World = GetWorld();
+	if (World)
+	{
+		FVector End = bUseScatter ? TraceEndWithScatter(TraceStart, HitTarget) : TraceStart + (HitTarget - TraceStart) * 1.25f;
+		World->LineTraceSingleByChannel(
+			OutHit,
+			TraceStart,
+			End,
+			ECollisionChannel::ECC_Visibility
+		);
+		FVector BeamEnd = End;
+		if (OutHit.bBlockingHit)
+		{
+			BeamEnd = OutHit.ImpactPoint;
+		}
+		if (BeamEffect)
+		{
+			UParticleSystemComponent* Beam = UGameplayStatics::SpawnEmitterAtLocation(
+				World,
+				BeamEffect,
+				TraceStart,
+				FRotator::ZeroRotator,
+				true
+			);
+			if (Beam)
+			{
+				Beam->SetVectorParameter(FName("Target"), BeamEnd);
+			}
+		}
+	}
+}
+
+void AHitScanWeapon::SimulateHit(const FHitResult& HitResult)
+{
+	if (ImpactEffect)
+	{
+		UGameplayStatics::SpawnEmitterAtLocation(
+			GetWorld(),
+			ImpactEffect,
+			HitResult.ImpactPoint,
+			HitResult.ImpactNormal.Rotation()
+		);
+	}
+	if (ImpactSound)
+	{
+		UGameplayStatics::PlaySoundAtLocation(
+			this,
+			ImpactSound,
+			HitResult.ImpactPoint
+		);
+	}
+}

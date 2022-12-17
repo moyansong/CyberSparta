@@ -7,8 +7,10 @@
 #include "Net/UnrealNetwork.h"
 #include "Sound/SoundCue.h"
 #include "Animation/AnimationAsset.h"
+#include "Components/TextBlock.h"
 #include "../CyberSparta.h"
 #include "../Characters/MyCharacter.h"
+#include "../HUD/InteractWidget.h"
 #include "../PlayerController/MyPlayerController.h"
 #include "../Components/CombatComponent.h"
 
@@ -34,8 +36,8 @@ AWeapon::AWeapon()
 	// 在客户端设为无碰撞，在Server端设置为可以碰撞, Server管理所有Weapond的碰撞
 	SetSphereCollision(false);
 
-	PickupWidgetComponent = CreateDefaultSubobject<UWidgetComponent>(TEXT("PickupWidget"));
-	PickupWidgetComponent->SetupAttachment(RootComponent);
+	InteractWidgetComponent = CreateDefaultSubobject<UWidgetComponent>(TEXT("InteractWidget"));
+	InteractWidgetComponent->SetupAttachment(RootComponent);
 
 	SetWeaponState(EWeaponState::EWS_Initial);
 	
@@ -55,9 +57,9 @@ void AWeapon::BeginPlay()
 		SphereComponent->OnComponentEndOverlap.AddDynamic(this, &AWeapon::OnSphereEndOverlap);
 	}
 
-	if (PickupWidgetComponent)
+	if (InteractWidgetComponent)
 	{
-		PickupWidgetComponent->SetVisibility(false);
+		InteractWidgetComponent->SetVisibility(false);
 	}
 }
 
@@ -78,9 +80,12 @@ void AWeapon::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeP
 
 void AWeapon::OnRep_Owner()
 {
+	// 不要在这里做别的事，想写东西去子类里写，因为有些子类的Owner可能并不是持有这个武器的角色
+
 	Super::OnRep_Owner();
 
 	// MyCharacter 和 MyController都是本地变量，以Owner为准
+	// Server上的设置会在SetIdle里进行
 	MyCharacter = Cast<AMyCharacter>(GetOwner());
 	if (MyCharacter) MyController = Cast<AMyPlayerController>(MyCharacter->GetController());
 }
@@ -91,7 +96,7 @@ void AWeapon::SetSphereCollision(bool bCanOverlapWithPawn)
 
 	if (bCanOverlapWithPawn)
 	{
-		SphereComponent->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
+		SphereComponent->SetCollisionEnabled(ECollisionEnabled::QueryOnly);
 		//SphereComponent->SetCollisionResponseToAllChannels(ECollisionResponse::ECR_Ignore);
 		SphereComponent->SetCollisionResponseToChannel(ECollisionChannel::ECC_Pawn, ECollisionResponse::ECR_Overlap);
 	}
@@ -169,9 +174,21 @@ void AWeapon::Pickup(AMyCharacter* PickCharacter)
 
 void AWeapon::SetInteractEffectVisibility(bool bVisibility)
 {
-	if (PickupWidgetComponent)
+	if (InteractWidgetComponent)
 	{
-		PickupWidgetComponent->SetVisibility(bVisibility);
+		InteractWidgetComponent->SetVisibility(bVisibility);
+	}
+}
+
+void AWeapon::SetInteractText(const FString& InteractString)
+{
+	if (InteractWidgetComponent)
+	{
+		UInteractWidget* InteractWidget = Cast<UInteractWidget>(InteractWidgetComponent->GetWidget());
+		if (InteractWidget && InteractWidget->InteractText)
+		{
+			InteractWidget->InteractText->SetText(FText::FromString(InteractString)); 
+		}
 	}
 }
 
@@ -197,9 +214,14 @@ void AWeapon::ReloadFinished()
 	//ClientUpdateAmmo(Ammo);
 }
 
+bool AWeapon::UseRightHandRotation()
+{
+	return true;
+}
+
 bool AWeapon::CanFire()
 {
-	return Ammo > 0;
+	return Ammo >= AmmoCostPerFire;
 }
 
 void AWeapon::FireStart(const FVector& HitTarget)
@@ -278,7 +300,7 @@ void AWeapon::OnEquipped()
 	if (!SphereComponent || !MeshComponent) return;
 
 	InitialLifeSpan = 0.f;
-	SetHUDWeaponAmmo();
+	SetHUDWeapon();
 	SetSphereCollision(false);
 	SetInteractEffectVisibility(false);
 	MeshComponent->SetVisibility(true);
@@ -290,11 +312,7 @@ void AWeapon::OnDropped()
 {
 	if (!SphereComponent || !MeshComponent) return;
 
-	if (HasAuthority())
-	{
-		SphereComponent->SetCollisionEnabled(ECollisionEnabled::QueryOnly);
-		SphereComponent->SetCollisionResponseToChannel(ECollisionChannel::ECC_Pawn, ECollisionResponse::ECR_Overlap);
-	}
+	SetSphereCollision(HasAuthority());
 	MeshComponent->SetVisibility(true);
 	MeshComponent->SetRenderCustomDepth(true); 
 	SetMeshSimulatePhysics(MeshComponent, true);
@@ -345,6 +363,15 @@ void AWeapon::SetHUDWeaponAmmo()
 	if (MyCharacter && MyCharacter->GetCombatComponent())
 	{
 		MyCharacter->GetCombatComponent()->SetHUDWeaponAmmo(); 
+	}
+}
+
+void AWeapon::SetHUDWeapon()
+{
+	MyCharacter = MyCharacter ? MyCharacter : Cast<AMyCharacter>(GetOwner());
+	if (MyCharacter && MyCharacter->GetCombatComponent())
+	{
+		MyCharacter->GetCombatComponent()->SetHUDWeapon();
 	}
 }
 

@@ -23,6 +23,7 @@ public:
 	virtual void PlayerEliminated(AMyCharacter* ElimmedCharacter, AMyPlayerController* AttackerController, AMyPlayerController* VictimController);
 protected:
 	virtual void HandleMatchHasStarted() override;
+	virtual void HandleMatchHasSettled() override;
 //-----------------------------------------------Parameters-----------------------------------------------------
 
 };

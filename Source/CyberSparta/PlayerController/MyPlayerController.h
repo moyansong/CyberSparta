@@ -87,7 +87,7 @@ public:
 	void SetHUDDefeats(int32 Defeats);
 	void SetHUDBlueTeamScore(int32 BlueScore);
 	void SetHUDRedTeamScore(int32 RedScore);
-	void SetHUDWeaponAmmo();
+	void SetHUDWeapon();
 	void SetHUDMatchCountdown(float CountdownTime);
 	void SetHUDWinner();
 	void SetHUDAnnouncementCountdown(float CountdownTime);

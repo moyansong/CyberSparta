@@ -57,27 +57,39 @@ public:
 	UPROPERTY(EditAnywhere, Category = Texture)
 	UTexture2D* CrosshairsBottom;
 
+	// 武器在装备栏的样子
+	UPROPERTY(EditAnywhere, Category = Texture)
+	UTexture2D* WeaponImage;
+
 	// 该值越大，准星最大扩张就越大
+	UPROPERTY(EditAnywhere, Category = Parameter)
 	float CorsshiarsSpreadScale = 1.f;
 //--------------------------------------------Animation-------------------------------------------------------------
+	// 武器自己开火的动画
 	UPROPERTY(EditAnywhere, Category = Animation)
-	UAnimationAsset* FireAnimation; // 武器自己开火的动画
+	UAnimationAsset* FireAnimation; 
 
+	// 角色开火的蒙太奇
 	UPROPERTY(EditDefaultsOnly, Category = Montage)
-	UAnimMontage* CharacterFireMontage; // 角色开火的蒙太奇
+	UAnimMontage* CharacterFireMontage; 
 
+	// 角色被打中时的蒙太奇
 	UPROPERTY(EditDefaultsOnly, Category = Montage)
 	UAnimMontage* HitReactMontage;
 
+	// 武器自己换弹的动画
 	UPROPERTY(EditAnywhere, Category = Animation)
-	UAnimationAsset* ReloadAnimation; // 武器自己换弹的动画
+	UAnimationAsset* ReloadAnimation; 
 
+	// 角色换弹的蒙太奇
 	UPROPERTY(EditDefaultsOnly, Category = Montage)
-	UAnimMontage* ReloadMontage; // 角色换弹的蒙太奇
+	UAnimMontage* ReloadMontage; 
 
+	// 装备该武器的蒙太奇
 	UPROPERTY(EditDefaultsOnly, Category = Montage)
-	UAnimMontage* EquipMontage; // 装备该武器的蒙太奇
+	UAnimMontage* EquipMontage; 
 
+	// 装备该武器时角色的动画蓝图
 	UPROPERTY(EditAnywhere, Category = Animation)
 	TSubclassOf<UAnimInstance> CharacterAnimationClass;
 	
@@ -89,7 +101,7 @@ public:
 	UFUNCTION()
 	virtual void FireStart(const FVector& HitTarget);
 	UFUNCTION()
-	virtual void FireStop();
+	virtual void FireStop();// FireStop只会在本地调用
 
 	UFUNCTION()
 	virtual void SimulateFire();
@@ -125,7 +137,7 @@ public:
 	UFUNCTION()
 	virtual void OnStateChanged();
 
-	// 设置各种状态下武器的属性
+	// 设置各种状态下武器的属性，会在Server和Client调用
 	UFUNCTION()
 	virtual void OnEquipped();
 	UFUNCTION()
@@ -139,7 +151,11 @@ public:
 //--------------------------------------------Set && Get-------------------------------------------------------------
 	virtual void SetInteractEffectVisibility(bool bVisibility) override;
 
+	virtual void SetInteractText(const FString& InteractString);
+
 	void SetAmmo(int32 AmmoToSet);
+
+	void SetHUDWeapon();
 	void SetHUDWeaponAmmo();
 
 	void SetWeaponState(EWeaponState State);
@@ -151,7 +167,7 @@ public:
 
 	FORCEINLINE USkeletalMeshComponent* GetMesh() const { return MeshComponent; }
 	FORCEINLINE USphereComponent* GetSphere() const { return SphereComponent; }
-	FORCEINLINE UWidgetComponent* GetPickupWidget() const { return PickupWidgetComponent; }
+	FORCEINLINE UWidgetComponent* GetInteractWidget() const { return InteractWidgetComponent; }
 
 	FORCEINLINE bool IsRangedWeapon() const { return bIsRangedWeapon; }
 
@@ -161,6 +177,8 @@ public:
 
 	FORCEINLINE bool CanReload() const { return bCanReload; }
 
+	FORCEINLINE float GetReloadDuration() const { return ReloadDuration; }
+
 	FORCEINLINE bool UseServerSideRewind() const { return bUseServerSideRewind; }
 
 	FORCEINLINE bool UseLeftHandIK() const { return bUseLeftHandIK; }
@@ -168,6 +186,8 @@ public:
 	FORCEINLINE EWeaponType GetWeaponType() const { return WeaponType; }
 
 	FORCEINLINE ETeam GetTeam() const { return Team; }
+
+	virtual bool UseRightHandRotation();
 
 protected:
 	virtual void BeginPlay() override;
@@ -205,8 +225,9 @@ protected:
 	UPROPERTY(EditAnywhere, Category = Parameter)
 	bool bUseLeftHandIK = true;
 
+	// 两次开火之间的间隔
 	UPROPERTY(EditAnywhere, Category = Parameter)
-	float FireDelay = 0.1f;
+	float FireDelay = 0.1f; 
 
 	UPROPERTY(EditAnywhere, Category = Parameter)
 	bool bCanAutomaticFire = true;
@@ -214,8 +235,12 @@ protected:
 	UPROPERTY(EditAnywhere, Category = Parameter)
 	bool bCanReload = true;
 
+	UPROPERTY(EditAnywhere, Category = Parameter)
+	float ReloadDuration = 2.f;
+
+	// 范围伤害武器和射速慢或子弹速度慢的武器应设为false
 	UPROPERTY(Replicated, EditAnywhere, Category = Parameter)
-	bool bUseServerSideRewind = true;// 范围伤害武器和射速慢或子弹速度慢的武器应设为false
+	bool bUseServerSideRewind = true;
 
 	// 还未收到的Server发来的更新Ammo的RPC数
 	int32 AmmoSequence = 0;
@@ -242,5 +267,5 @@ private:
 	USphereComponent* SphereComponent;
 
 	UPROPERTY(VisibleAnywhere, Category = "Components")
-	UWidgetComponent* PickupWidgetComponent;
+	UWidgetComponent* InteractWidgetComponent;
 };

@@ -9,6 +9,7 @@
 ABlastingZone::ABlastingZone()
 {
 	PrimaryActorTick.bCanEverTick = true;
+	bReplicates = true;
 
 	SphereComponent = CreateDefaultSubobject<USphereComponent>(TEXT("Sphere"));
 	SetRootComponent(SphereComponent);
