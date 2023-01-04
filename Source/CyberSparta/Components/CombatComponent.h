@@ -48,6 +48,8 @@ public:
 	void LocalFire(const FVector& HitTarget);
 	UFUNCTION()
 	void FireFinished();
+	UFUNCTION()
+	void LocalFireStop();
 
 	// 该函数只模拟开火，生成动画特效之类的，不生成子弹
 	UFUNCTION(BlueprintCallable)
@@ -124,6 +126,12 @@ protected:
 	void MulticastFire(const FVector_NetQuantize100& HitTarget);
 
 	UFUNCTION(Server, Reliable)
+	void ServerFireStop();
+
+	UFUNCTION(NetMulticast, Reliable)
+	void MulticastFireStop();
+
+	UFUNCTION(Server, Reliable)
 	void ServerReloadStart();
 
 	UFUNCTION(Server, Reliable)
@@ -149,7 +157,7 @@ private:
 	UPROPERTY()
 	UWeaponWidget* WeaponWidget;
 
-	UPROPERTY(ReplicatedUsing = OnRep_EquippedWeapon)
+	UPROPERTY(ReplicatedUsing = OnRep_EquippedWeapon, VisibleAnywhere, Category = Weapon)
 	AWeapon* EquippedWeapon;
 	UFUNCTION()
 	void OnRep_EquippedWeapon(AWeapon* LastWeapon);

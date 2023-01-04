@@ -4,10 +4,12 @@
 
 #include "CoreMinimal.h"
 #include "Animation/AnimInstance.h"
+#include "../Weapons/WeaponTypes.h"
 #include "MyAnimInstance.generated.h"
 
 class AMyCharacter;
 class AWeapon;
+class UCharacterMovementComponent;
 
 UCLASS()
 class CYBERSPARTA_API UMyAnimInstance : public UAnimInstance
@@ -20,7 +22,7 @@ public:
 	// 类似于BeginPlay
 	virtual void NativeInitializeAnimation() override;
 
-	// 类似于Tick
+	// 类似于Tick，总是运行，即使没在游戏中，所以空指针会导致编辑器崩溃
 	virtual void NativeUpdateAnimation(float DeltaTime) override;
 
 	void AimOffset(float DeltaTime);
@@ -34,8 +36,14 @@ private:
 	UPROPERTY(BlueprintReadOnly, Category = Paramters, meta = (AllowPrivateAccess = "true"))
 	AMyCharacter* MyCharacter;
 
+	UPROPERTY(BlueprintReadOnly, Category = Movement, meta = (AllowPrivateAccess = "true"))
+	UCharacterMovementComponent* MyMovementComponent;
+
 	UPROPERTY(BlueprintReadOnly, Category = Paramters, meta = (AllowPrivateAccess = "true"))
 	AWeapon* EquippedWeapon;
+
+	UPROPERTY(BlueprintReadOnly, Category = Paramters, meta = (AllowPrivateAccess = "true"))
+	EWeaponType EquippedWeaponType;
 
 	UPROPERTY(BlueprintReadOnly, Category = Movement, meta = (AllowPrivateAccess = "true"))
 	float Speed;
@@ -90,6 +98,7 @@ private:
 
 	UPROPERTY(BlueprintReadOnly, Category = Movement, meta = (AllowPrivateAccess = "true"))
 	bool bIsAlive;
+
 //------------------------------------------Animations----------------------------------------------------------
 	//UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Animation, meta = (AllowPrivateAccess = "true"))
 	

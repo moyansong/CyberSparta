@@ -85,16 +85,17 @@ void AMyGameMode::HandleMatchHasSettled()
 {
 }
 
-void AMyGameMode::PlayerEliminated(AMyCharacter* ElimmedCharacter, AMyPlayerController* AttackerController, AMyPlayerController* VictimController)
+void AMyGameMode::PlayerEliminated(AMyCharacter* ElimmedCharacter, AMyPlayerController* AttackerController, AMyPlayerController* VictimController, bool bHeadShot)
 {
 	if (!ElimmedCharacter || !AttackerController || !VictimController) return;
+
 	AMyPlayerState* AttackerPlayerState = Cast<AMyPlayerState>(AttackerController->PlayerState);
 	AMyPlayerState* VictimPlayerState = Cast<AMyPlayerState>(VictimController->PlayerState);
 
 	if (AttackerPlayerState && VictimPlayerState)
 	{
-		UpdatePlayerState(AttackerPlayerState, VictimPlayerState);
-		UpdateGameState(AttackerPlayerState, VictimPlayerState);
+		UpdatePlayerState(AttackerPlayerState, VictimPlayerState, bHeadShot);
+		UpdateGameState(AttackerPlayerState, VictimPlayerState, bHeadShot);
 	}
 }
 
@@ -116,13 +117,17 @@ void AMyGameMode::RequestRespawn(ACharacter* ElimmedCharacter, AController* Elim
 	}
 }
 
-void AMyGameMode::UpdatePlayerState(AMyPlayerState* AttackerPlayerState, AMyPlayerState* VictimPlayerState)
+void AMyGameMode::UpdatePlayerState(AMyPlayerState* AttackerPlayerState, AMyPlayerState* VictimPlayerState, bool bHeadShot)
 {
 	if (!AttackerPlayerState || !VictimPlayerState) return;
 
 	if (AttackerPlayerState != VictimPlayerState)
 	{
 		AttackerPlayerState->IncreaseScore(1.f);
+		if (bHeadShot)
+		{
+			AttackerPlayerState->IncreaseHeadShots(1);
+		}
 	}
 	VictimPlayerState->IncreaseDefeats(1); 
 	for (FConstPlayerControllerIterator It = GetWorld()->GetPlayerControllerIterator(); It; ++It)
@@ -135,7 +140,7 @@ void AMyGameMode::UpdatePlayerState(AMyPlayerState* AttackerPlayerState, AMyPlay
 	}
 }
 
-void AMyGameMode::UpdateGameState(AMyPlayerState* AttackerPlayerState, AMyPlayerState* VictimPlayerState)
+void AMyGameMode::UpdateGameState(AMyPlayerState* AttackerPlayerState, AMyPlayerState* VictimPlayerState, bool bHeadShot)
 {
 	MyGameState = MyGameState ? MyGameState : GetGameState<AMyGameState>();
 	if (!MyGameState || !AttackerPlayerState || !VictimPlayerState) return;

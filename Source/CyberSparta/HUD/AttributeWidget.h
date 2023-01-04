@@ -32,5 +32,8 @@ public:
 	UTextBlock* ScoreText;
 
 	UPROPERTY(meta = (BindWidget))
+	UTextBlock* HeadShotsText;
+
+	UPROPERTY(meta = (BindWidget))
 	UTextBlock* DefeatsText;
 };

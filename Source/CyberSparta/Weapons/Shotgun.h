@@ -6,9 +6,6 @@
 #include "HitScanWeapon.h"
 #include "Shotgun.generated.h"
 
-/**
- * 
- */
 UCLASS()
 class CYBERSPARTA_API AShotgun : public AHitScanWeapon
 {

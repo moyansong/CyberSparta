@@ -22,6 +22,20 @@ AProjectileGrenade::AProjectileGrenade()
 	ProjectileMovementComponent->bShouldBounce = true;
 }
 
+void AProjectileGrenade::Tick(float DeltaTime)
+{
+	Super::Tick(DeltaTime);
+	/*DrawDebugSphere(
+		GetWorld(),
+		GetActorLocation(),
+		12.f,
+		12,
+		FColor::Red,
+		false,
+		10.f
+	);*/
+}
+
 void AProjectileGrenade::BeginPlay()
 {
 	AActor::BeginPlay();

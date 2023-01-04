@@ -347,7 +347,7 @@ void AMyCharacter::SetShouldMulticastEffect(bool ShouldMulticastEffect)
 	bShouldMulticastEffect = ShouldMulticastEffect;
 }
 
-bool AMyCharacter::IsAiming()
+bool AMyCharacter::IsAiming() const
 {
 	return CombatComponent && CombatComponent->bIsAiming;
 }
@@ -616,26 +616,55 @@ void AMyCharacter::EquipWeapon(float Value)
 	}
 }
 
-AWeapon* AMyCharacter::GetEquippedWeapon()
+AWeapon* AMyCharacter::GetEquippedWeapon() const
 {
 	return CombatComponent ? CombatComponent->EquippedWeapon : nullptr;
 }
 
-bool AMyCharacter::IsWeaponEquipped()
+bool AMyCharacter::IsWeaponEquipped() const
 {
 	return CombatComponent && CombatComponent->EquippedWeapon;
 }
 
 void AMyCharacter::SimulateHit(const FRotator& HitDirection, const FVector& HitLocation)
 {
-	float HitDirectionYaw = HitDirection.Yaw - GetActorRotation().Yaw;
-	FString HitDirectionString(TEXT("HitByFwd"));
-	if (HitDirectionYaw > 45.f && HitDirectionYaw <= 135.f) HitDirectionString = FString(TEXT("HitByLt"));
-	else if (HitDirectionYaw > 135.f || HitDirectionYaw <= -135.f) HitDirectionString = FString(TEXT("HitByFwd"));
-	else if (HitDirectionYaw > -135.f && HitDirectionYaw  <= -45.f) HitDirectionString = FString(TEXT("HitByRt"));
-	else if (HitDirectionYaw > -45.f && HitDirectionYaw <= 45.f) HitDirectionString = FString(TEXT("HitByBwd"));
-	
-	PlayHitReactMontage(FName(*HitDirectionString));
+	/*float HitDirectionYaw = HitDirection.Yaw - GetActorRotation().Yaw;
+	FName Section("HitByFwd");
+	if (HitDirectionYaw >= 45.f && HitDirectionYaw < 135.f) Section = FName("HitByLt");
+	else if (HitDirectionYaw >= -135.f && HitDirectionYaw  < -45.f) Section = FName("HitByRt");
+	else if (HitDirectionYaw >= -45.f && HitDirectionYaw < 45.f) Section = FName("HitByBwd");*/
+
+	const FVector Forward = GetActorForwardVector();
+	const FVector ImpactLowered(HitLocation.X, HitLocation.Y, GetActorLocation().Z);
+	const FVector ToHit = (ImpactLowered - GetActorLocation()).GetSafeNormal();
+
+	const double CosTheta = FVector::DotProduct(Forward, ToHit);
+	// Theta总是>0
+	double Theta = FMath::RadiansToDegrees(FMath::Acos(CosTheta));
+
+	// ue是左手系，叉乘遵循左手定则
+	const FVector CrossProduct = FVector::CrossProduct(Forward, ToHit);
+	Theta *= CrossProduct.Z < 0 ? -1.f : 1.f;
+
+	FName Section("HitByBwd");
+	if (Theta >= -45.f && Theta < 45.f)
+	{
+		Section = FName("HitByFwd");
+	}
+	else if (Theta >= -135.f && Theta < -45.f)
+	{
+		Section = FName("HitByLt");
+	}
+	else if (Theta >= 45.f && Theta < 135.f)
+	{
+		Section = FName("HitByRt");
+	}
+	PlayHitReactMontage(Section);
+
+	/*Cout(this, Section.ToString());
+	UKismetSystemLibrary::DrawDebugArrow(this, GetActorLocation(), GetActorLocation() + Forward * 60.f, 5.f, FColor::Red, 10.f);
+	UKismetSystemLibrary::DrawDebugArrow(this, GetActorLocation(), GetActorLocation() + ToHit * 60.f, 5.f, FColor::Green, 10.f);
+	UKismetSystemLibrary::DrawDebugArrow(this, GetActorLocation(), GetActorLocation() + CrossProduct * 60.f, 5.f, FColor::Blue, 10.f);*/
 }
 
 void AMyCharacter::MulticastHit_Implementation(const FRotator& HitDirection, const FVector_NetQuantize& HitLocation)
@@ -674,7 +703,12 @@ void AMyCharacter::SimProxiesTurn()
 	}
 }
 
-bool AMyCharacter::IsAlive()
+float AMyCharacter::GetHealth() const
+{
+	return AttributeComponent ? AttributeComponent->GetHealth() : 0.f;
+}
+
+bool AMyCharacter::IsAlive() const
 {
 	return AttributeComponent && AttributeComponent->IsAlive();
 }
@@ -782,7 +816,7 @@ void AMyCharacter::SetTeam(ETeam Team)
 	}
 }
 
-ETeam AMyCharacter::GetTeam()
+ETeam AMyCharacter::GetTeam() const
 {
 	// MyPlayerState = MyPlayerState ? MyPlayerState : GetPlayerState<AMyPlayerState>();
 	// 不进行上一行的原因是，有时过早的调用GetTeam会导致一些bug

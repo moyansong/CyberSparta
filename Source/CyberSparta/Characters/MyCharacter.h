@@ -147,22 +147,24 @@ public:
 
 	FORCEINLINE USpringArmComponent* GetCameraBoom() const { return CameraBoom; }
 	FORCEINLINE UCameraComponent* GetFollowCamera() const { return FollowCamera; }
-	FORCEINLINE UAttributeComponent* GetAttributeComponent() const { return AttributeComponent; }
-	FORCEINLINE UCombatComponent* GetCombatComponent() const { return CombatComponent; }
 	FORCEINLINE UBuffComponent* GetBuffComponent() const { return BuffComponent; }
+	FORCEINLINE UCombatComponent* GetCombatComponent() const { return CombatComponent; }
+	FORCEINLINE UAttributeComponent* GetAttributeComponent() const { return AttributeComponent; }
 	FORCEINLINE ULagCompensationComponent* GetLagCompensationComponent() const { return LagCompensationComponent; }
 	
 	UFUNCTION(BlueprintCallable)
-	bool IsWeaponEquipped();
+	bool IsWeaponEquipped() const;
 
 	UFUNCTION(BlueprintCallable)
-	bool IsAiming();
+	bool IsAiming() const;
+
+	float GetHealth() const;
 
 	UFUNCTION(BlueprintCallable)
-	bool IsAlive();
+	bool IsAlive() const;
 
 	UFUNCTION(BlueprintCallable)
-	AWeapon* GetEquippedWeapon();
+	AWeapon* GetEquippedWeapon() const;
 
 	UFUNCTION(BlueprintCallable)
 	FVector GetHitTarget() const;
@@ -182,7 +184,7 @@ public:
 
 	void SetMaxWalkSpeed(bool bIsRunning);
 
-	ETeam GetTeam();
+	ETeam GetTeam() const;
 
 	// 根据Team选择重生点
 	void SetSpawnLocation();

@@ -85,6 +85,7 @@ public:
 	void SetHUDShield();
 	void SetHUDScore(float Score);
 	void SetHUDDefeats(int32 Defeats);
+	void SetHUDHeadShots(int32 HeadShots);
 	void SetHUDBlueTeamScore(int32 BlueScore);
 	void SetHUDRedTeamScore(int32 RedScore);
 	void SetHUDWeapon();

@@ -54,7 +54,7 @@ void ARangedWeapon::SimulateFire()
 	SpawnShellCase();
 }
 
-void ARangedWeapon::SpawnProjectile(const FVector& HitTarget, bool bProjectileUseServerSideRewind, bool bProjectileReplicates)
+AProjectile* ARangedWeapon::SpawnProjectile(const FVector& HitTarget, bool bProjectileUseServerSideRewind, bool bProjectileReplicates)
 {
 	USkeletalMeshComponent* Mesh = GetMesh();
 	UWorld* World = GetWorld();
@@ -84,9 +84,11 @@ void ARangedWeapon::SpawnProjectile(const FVector& HitTarget, bool bProjectileUs
 				Projectile->bReplicates = bProjectileReplicates;
 				Projectile->TraceStart = MuzzleTransform.GetLocation();
 				Projectile->InitialVelocity = Projectile->GetActorForwardVector() * Projectile->InitialSpeed;
+				return Projectile;
 			}
 		}
 	}
+	return nullptr;
 }
 
 void ARangedWeapon::SpawnShellCase()

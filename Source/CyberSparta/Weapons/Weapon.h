@@ -25,7 +25,7 @@ class UParticleSystem;
 UENUM(BlueprintType)
 enum class EWeaponState : uint8
 {
-	EWS_Initial UMETA(DisplayName = "Initial"),// 刚初始化在世界里
+	EWS_Initialized UMETA(DisplayName = "Initialized"),// 刚初始化在世界里
 	EWS_Equipped UMETA(DisplayName = "Equipped"),// 正在使用的武器
 	EWS_Dropped UMETA(DisplayName = "Dropped"),// 被人丢了
 	EWS_Idle UMETA(DisplayName = "Idle"),// 在人身上但是现在不在用
@@ -101,7 +101,7 @@ public:
 	UFUNCTION()
 	virtual void FireStart(const FVector& HitTarget);
 	UFUNCTION()
-	virtual void FireStop();// FireStop只会在本地调用
+	virtual void FireStop();
 
 	UFUNCTION()
 	virtual void SimulateFire();
@@ -175,8 +175,6 @@ public:
 
 	FORCEINLINE bool CanAutomaticFire() const { return bCanAutomaticFire; }
 
-	FORCEINLINE bool CanReload() const { return bCanReload; }
-
 	FORCEINLINE float GetReloadDuration() const { return ReloadDuration; }
 
 	FORCEINLINE bool UseServerSideRewind() const { return bUseServerSideRewind; }
@@ -186,6 +184,10 @@ public:
 	FORCEINLINE EWeaponType GetWeaponType() const { return WeaponType; }
 
 	FORCEINLINE ETeam GetTeam() const { return Team; }
+
+	virtual bool CanReload();
+
+	FORCEINLINE bool CanDrop() const { return bCanDrop; }
 
 	virtual bool UseRightHandRotation();
 
@@ -225,6 +227,9 @@ protected:
 	UPROPERTY(EditAnywhere, Category = Parameter)
 	bool bUseLeftHandIK = true;
 
+	UPROPERTY(EditAnywhere, Category = Parameter)
+	bool bUseRightHandRotation = true;
+
 	// 两次开火之间的间隔
 	UPROPERTY(EditAnywhere, Category = Parameter)
 	float FireDelay = 0.1f; 
@@ -241,6 +246,9 @@ protected:
 	// 范围伤害武器和射速慢或子弹速度慢的武器应设为false
 	UPROPERTY(Replicated, EditAnywhere, Category = Parameter)
 	bool bUseServerSideRewind = true;
+
+	UPROPERTY(EditAnywhere, Category = Parameter)
+	bool bCanDrop = true;
 
 	// 还未收到的Server发来的更新Ammo的RPC数
 	int32 AmmoSequence = 0;

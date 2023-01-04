@@ -25,7 +25,7 @@ void AShellCase::BeginPlay()
 	FRotator Rotation = GetOwner() ? GetOwner()->GetActorRotation() : FRotator::ZeroRotator;
 	Rotation.Pitch += 45.f + FMath::RandRange(-10.f, 10.f);
 	Rotation.Yaw += 90.f + FMath::RandRange(-10.f, 10.f);
-	MeshComponent->AddImpulse(Rotation.Vector() * FMath::RandRange(10.f, 15.f));
+	MeshComponent->AddImpulse(Rotation.Vector() * FMath::RandRange(MinShellEjectionImpluse, MaxShellEjectionImpluse));
 	MeshComponent->OnComponentHit.AddDynamic(this, &AShellCase::OnHit);
 }
 

@@ -9,9 +9,6 @@
 class AProjectile;
 class AShellCase;
 
-/**
- * 
- */
 UCLASS()
 class CYBERSPARTA_API ARangedWeapon : public AWeapon
 {
@@ -29,8 +26,9 @@ public:
 	virtual void SimulateFire() override;
 
 	// bProjectileUseServerSideRewind = true表示子弹需要向Server报告击中结果，由Server检查
-	virtual void SpawnProjectile(const FVector& HitTarget, bool bProjectileUseServerSideRewind, bool bProjectileReplicates = true);
+	virtual AProjectile* SpawnProjectile(const FVector& HitTarget, bool bProjectileUseServerSideRewind, bool bProjectileReplicates = true);
 
+	// 产生弹壳，需要确保武器SKeletalMesh里有AmmoEject套接字
 	virtual void SpawnShellCase();
 
 	UFUNCTION()

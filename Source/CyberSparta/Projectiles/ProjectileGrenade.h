@@ -15,6 +15,7 @@ class CYBERSPARTA_API AProjectileGrenade : public AProjectile
 
 public:
 	AProjectileGrenade();
+	virtual void Tick(float DeltaTime) override;
 	virtual void Destroyed() override;
 protected:
 	virtual void BeginPlay() override;

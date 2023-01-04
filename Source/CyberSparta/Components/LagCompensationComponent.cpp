@@ -11,7 +11,9 @@
 #include "../Weapons/Shotgun.h"
 #include "../Projectiles/Projectile.h"
 #include "../Characters/MyCharacter.h"
-
+#include "../Components/AttributeComponent.h"
+#include "../GameFramework/HeadShotDamageType.h"
+#include "../GameFramework/TrunkShotDamageType.h"
 
 ULagCompensationComponent::ULagCompensationComponent()
 {
@@ -226,26 +228,37 @@ void ULagCompensationComponent::ServerScoreRequest_Implementation(AMyCharacter* 
 	AHitScanWeapon* HitScanWeapon = Cast<AHitScanWeapon>(DamageCauser);// 或者可以使用EquippedWeapon
 	if (MyCharacter && HitCharacter && Confirm.bHitConfirmed && HitScanWeapon)
 	{
+		TSubclassOf<UDamageType> DamageTypeClass = UDamageType::StaticClass();
+		if (Confirm.bHeadShot)
+		{
+			DamageTypeClass = UHeadShotDamageType::StaticClass();
+		}
+		else if (Confirm.bTrunkShot)
+		{
+			DamageTypeClass = UTrunkShotDamageType::StaticClass();
+		}
+
 		UGameplayStatics::ApplyDamage(
 			HitCharacter,
 			Confirm.bHeadShot ? HitScanWeapon->GetHeadShotDamage() : HitScanWeapon->GetDamage(),
 			MyCharacter->Controller,
 			DamageCauser,
-			UDamageType::StaticClass()
+			DamageTypeClass
 		);
 	}
 }
 
 void ULagCompensationComponent::ShotgunServerScoreRequest_Implementation(const TArray<AMyCharacter*>& HitCharacters, const FVector_NetQuantize& TraceStart, const TArray<FVector_NetQuantize>& HitLocations, float HitTime, AWeapon* DamageCauser)
 {
-	FShotgunServerSideRewindResult Confirm = ShotgunServerSideRewind(HitCharacters, TraceStart, HitLocations, HitTime);
 	AShotgun* Shotgun = Cast<AShotgun>(DamageCauser);
 	if (!Shotgun || !MyCharacter) return;
+
+	FShotgunServerSideRewindResult Confirm = ShotgunServerSideRewind(HitCharacters, TraceStart, HitLocations, HitTime);
 	
 	for (auto& HitCharacter : HitCharacters)
 	{
 		if (!HitCharacter) continue;
-		float HeadShotDamage = 0.f, BodyDamage = 0.f;
+		float HeadShotDamage = 0.f, BodyDamage = 0.f, TrunkDamage = 0.f;
 		if (Confirm.HeadShots.Contains(HitCharacter))
 		{
 			HeadShotDamage = Confirm.HeadShots[HitCharacter] * Shotgun->GetHeadShotDamage();
@@ -254,12 +267,29 @@ void ULagCompensationComponent::ShotgunServerScoreRequest_Implementation(const T
 		{
 			BodyDamage = Confirm.BodyShots[HitCharacter] * Shotgun->GetDamage();
 		}
+		if (Confirm.TrunkShots.Contains(HitCharacter))
+		{
+			TrunkDamage = Confirm.TrunkShots[HitCharacter] * Shotgun->GetDamage();
+			if (HitCharacter->GetAttributeComponent())
+			{
+				float DamageToShield = HitCharacter->GetAttributeComponent()->CalculateShiledReceivedDamage(TrunkDamage);
+				HitCharacter->GetAttributeComponent()->DecreaseShield(DamageToShield);
+				TrunkDamage -= DamageToShield;
+			}
+		}
+
+		TSubclassOf<UDamageType> DamageTypeClass = UDamageType::StaticClass();
+		if (HeadShotDamage >= BodyDamage + TrunkDamage && HeadShotDamage >= HitCharacter->GetHealth())
+		{
+			DamageTypeClass = UHeadShotDamageType::StaticClass();
+		}
+
 		UGameplayStatics::ApplyDamage(
 			HitCharacter,
-			HeadShotDamage + BodyDamage,
+			HeadShotDamage + BodyDamage + TrunkDamage,
 			MyCharacter->Controller,
 			DamageCauser,
-			UDamageType::StaticClass()
+			DamageTypeClass
 		);
 	}
 }
@@ -272,6 +302,16 @@ void ULagCompensationComponent::ProjectileServerScoreRequest_Implementation(AMyC
 		ARangedWeapon* MyWeapon = Cast<ARangedWeapon>(MyCharacter->GetEquippedWeapon());
 		if (MyWeapon)
 		{
+			TSubclassOf<UDamageType> DamageTypeClass = UDamageType::StaticClass();
+			if (Confirm.bHeadShot)
+			{
+				DamageTypeClass = UHeadShotDamageType::StaticClass();
+			}
+			else if (Confirm.bTrunkShot)
+			{
+				DamageTypeClass = UTrunkShotDamageType::StaticClass();
+			}
+
 			AProjectile* DefaultProjectile = MyWeapon->GetDefaultProjectile();
 			if (DefaultProjectile)
 			{
@@ -280,7 +320,7 @@ void ULagCompensationComponent::ProjectileServerScoreRequest_Implementation(AMyC
 					Confirm.bHeadShot ? DefaultProjectile->GetHeadShotDamage() : DefaultProjectile->GetDamage(),
 					MyCharacter->Controller,
 					MyWeapon,
-					UDamageType::StaticClass()
+					DamageTypeClass
 				);
 			}
 		}
@@ -341,7 +381,7 @@ FServerSideRewindResult ULagCompensationComponent::ConfirmHit(const FFramePackag
 		{
 			ResetHitBoxs(HitCharacter, CurrentFrame); 
 			SetCharacterMeshCollision(HitCharacter, ECollisionEnabled::QueryAndPhysics);
-			return FServerSideRewindResult{ true, true };
+			return FServerSideRewindResult{ true, true, false };
 		}
 		else // 没打到头，检查是否打到其他部位
 		{
@@ -362,15 +402,15 @@ FServerSideRewindResult ULagCompensationComponent::ConfirmHit(const FFramePackag
 			if (ConfirmHitResult.bBlockingHit)
 			{
 				ResetHitBoxs(HitCharacter, CurrentFrame);
-				SetCharacterMeshCollision(HitCharacter, ECollisionEnabled::QueryAndPhysics);
-				return FServerSideRewindResult{ true, false };
+				SetCharacterMeshCollision(HitCharacter, ECollisionEnabled::QueryAndPhysics); 
+				return FServerSideRewindResult{ true, false, IsTrunkShot(ConfirmHitResult) };
 			}
 		}
 	}
 	// 什么都没打到
 	ResetHitBoxs(HitCharacter, CurrentFrame);
 	SetCharacterMeshCollision(HitCharacter, ECollisionEnabled::QueryAndPhysics);
-	return FServerSideRewindResult{ false, false };
+	return FServerSideRewindResult{ false, false, false };
 }
 
 FShotgunServerSideRewindResult ULagCompensationComponent::ShotgunConfirmHit(const TArray<FFramePackage>& Packages, const FVector_NetQuantize& TraceStart, const TArray<FVector_NetQuantize>& HitLocations)
@@ -454,13 +494,27 @@ FShotgunServerSideRewindResult ULagCompensationComponent::ShotgunConfirmHit(cons
 			AMyCharacter* HitCharacter = Cast<AMyCharacter>(ConfirmHitResult.GetActor());
 			if (HitCharacter)
 			{
-				if (ShotgunResult.BodyShots.Contains(HitCharacter))
+				if (IsTrunkShot(ConfirmHitResult))
 				{
-					++ShotgunResult.BodyShots[HitCharacter];
+					if (ShotgunResult.TrunkShots.Contains(HitCharacter))
+					{
+						++ShotgunResult.TrunkShots[HitCharacter];
+					}
+					else
+					{
+						ShotgunResult.TrunkShots.Emplace(HitCharacter, 1);
+					}
 				}
 				else
 				{
-					ShotgunResult.BodyShots.Emplace(HitCharacter, 1);
+					if (ShotgunResult.BodyShots.Contains(HitCharacter))
+					{
+						++ShotgunResult.BodyShots[HitCharacter];
+					}
+					else
+					{
+						ShotgunResult.BodyShots.Emplace(HitCharacter, 1);
+					}
 				}
 			}
 		}
@@ -505,7 +559,7 @@ FServerSideRewindResult ULagCompensationComponent::ProjectileConfirmHit(const FF
 	{
 		ResetHitBoxs(HitCharacter, CurrentFrame);
 		SetCharacterMeshCollision(HitCharacter, ECollisionEnabled::QueryAndPhysics);
-		return FServerSideRewindResult{ true, true };
+		return FServerSideRewindResult{ true, true, false };
 	}
 	else //没打到头，检查是否打到别的部位
 	{
@@ -522,13 +576,13 @@ FServerSideRewindResult ULagCompensationComponent::ProjectileConfirmHit(const FF
 		{
 			ResetHitBoxs(HitCharacter, CurrentFrame);
 			SetCharacterMeshCollision(HitCharacter, ECollisionEnabled::QueryAndPhysics);
-			return FServerSideRewindResult{ true, false };
+			return FServerSideRewindResult{ true, false, IsTrunkShot(PredictResult.HitResult) };
 		}
 	}
 	// 什么都没打到
 	ResetHitBoxs(HitCharacter, CurrentFrame);
 	SetCharacterMeshCollision(HitCharacter, ECollisionEnabled::QueryAndPhysics);
-	return FServerSideRewindResult{ false, false };
+	return FServerSideRewindResult{ false, false, false };
 }
 
 void ULagCompensationComponent::SetCharacterMeshCollision(AMyCharacter* HitCharacter, ECollisionEnabled::Type CollisionEnabled)
@@ -539,3 +593,10 @@ void ULagCompensationComponent::SetCharacterMeshCollision(AMyCharacter* HitChara
 	}
 }
 
+bool ULagCompensationComponent::IsTrunkShot(const FHitResult& HitResult)
+{
+	if (!HitResult.GetComponent()) return false;
+
+	FName HitBone = HitResult.GetComponent()->GetFName();
+	return HitBone == FName("spine_01") || HitBone == FName("spine_02") || HitBone == FName("spine_03");
+}

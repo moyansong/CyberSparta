@@ -16,7 +16,7 @@ class CYBERSPARTA_API ABlastingGameMode : public ATeamGameMode
 
 //-----------------------------------------------Functions-----------------------------------------------------
 public:
-	virtual void RequestRespawn(ACharacter* ElimmedCharacter, AController* ElimmedController);
+	virtual void RequestRespawn(ACharacter* ElimmedCharacter, AController* ElimmedController) override;
 
 	virtual void HandleMatchHasStarted() override;
 	virtual void HandleMatchHasSettled() override;

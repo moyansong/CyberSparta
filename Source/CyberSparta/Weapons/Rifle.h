@@ -6,9 +6,6 @@
 #include "RangedWeapon.h"
 #include "Rifle.generated.h"
 
-/**
- * 
- */
 UCLASS()
 class CYBERSPARTA_API ARifle : public ARangedWeapon
 {

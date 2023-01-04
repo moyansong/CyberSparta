@@ -16,6 +16,17 @@ class CYBERSPARTA_API AMyPlayerState : public APlayerState
 	GENERATED_BODY()
 
 public:
+//------------------------------------------------Set && Get------------------------------------------------------------
+	bool IsTeammate(AMyPlayerState* OtherPlayer);
+
+	void SetTeam(ETeam TeamToSet);
+
+	FORCEINLINE ETeam GetTeam() const { return Team; }
+
+	FORCEINLINE int32 GetDefeats() const { return Defeats; }
+
+	FORCEINLINE int32 GetHeadShots() const { return HeadShots; }
+
 //------------------------------------------------Functions------------------------------------------------------------
 	virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
 	
@@ -28,12 +39,11 @@ public:
 
 	void IncreaseDefeats(int32 DefeatsIncrement);
 
-	FORCEINLINE int32 GetDefeats() const { return Defeats; }
+	UFUNCTION()
+	virtual void OnRep_HeadShots();
 
-	bool IsTeammate(AMyPlayerState* OtherPlayer);
+	void IncreaseHeadShots(int32 HeadShotsIncrement);
 
-	void SetTeam(ETeam TeamToSet);
-	FORCEINLINE ETeam GetTeam() const { return Team; }
 private:
 //------------------------------------------------Parameters--------------------------------------------------------------
 	UPROPERTY()
@@ -44,6 +54,10 @@ private:
 	// 被淘汰/击杀的次数
 	UPROPERTY(ReplicatedUsing = OnRep_Defeats)
 	int32 Defeats = 0;
+
+	// 爆头数
+	UPROPERTY(ReplicatedUsing = OnRep_HeadShots)
+	int32 HeadShots = 0;
 
 	UPROPERTY(EditAnywhere, ReplicatedUsing = OnRep_Team)
 	ETeam Team = ETeam::ET_NoTeam;

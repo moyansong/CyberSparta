@@ -55,9 +55,9 @@ void ATeamGameMode::Logout(AController* Exiting)
 	}
 }
 
-void ATeamGameMode::PlayerEliminated(AMyCharacter* ElimmedCharacter, AMyPlayerController* AttackerController, AMyPlayerController* VictimController)
+void ATeamGameMode::PlayerEliminated(AMyCharacter* ElimmedCharacter, AMyPlayerController* AttackerController, AMyPlayerController* VictimController, bool bHeadShot)
 {
-	Super::PlayerEliminated(ElimmedCharacter, AttackerController, VictimController);
+	Super::PlayerEliminated(ElimmedCharacter, AttackerController, VictimController, bHeadShot);
 
 	MyGameState = MyGameState ? MyGameState : GetGameState<AMyGameState>();
 	AMyPlayerState* AttackerPlayerState = AttackerController ? Cast<AMyPlayerState>(AttackerController->PlayerState) : nullptr;

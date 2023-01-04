@@ -21,7 +21,10 @@ ABlastingBomb::ABlastingBomb()
 	AmmoCostPerFire = 0;
 	bReplicates = true;
 	bCanReload = false;
+	bUseLeftHandIK = false;
 	bCanAutomaticFire = false;
+	bUseServerSideRewind = false;
+	bUseRightHandRotation = false;
 	FireDelay = InstallDuration + 0.2f;
 	Team = ETeam::ET_RedTeam;
 }
@@ -222,10 +225,13 @@ void ABlastingBomb::FireStart(const FVector& HitTarget)
 
 void ABlastingBomb::FireStop()
 {
-	GetWorldTimerManager().ClearTimer(InstallTimer);
-	if (MyCharacter && MyCharacter->GetCombatComponent())
+	if (MyCharacter && MyCharacter->IsLocallyControlled())
 	{
-		MyCharacter->GetCombatComponent()->SetCombatState(ECombatState::ECS_Idle);
+		GetWorldTimerManager().ClearTimer(InstallTimer);
+		if (MyCharacter && MyCharacter->GetCombatComponent())
+		{
+			MyCharacter->GetCombatComponent()->SetCombatState(ECombatState::ECS_Idle);
+		}
 	}
 }
 

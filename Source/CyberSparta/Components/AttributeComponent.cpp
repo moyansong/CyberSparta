@@ -15,6 +15,8 @@
 #include "../PlayerStates/MyPlayerState.h"
 #include "../HUD/MyHUD.h"
 #include "../HUD/AttributeWidget.h"
+#include "../GameFramework/HeadShotDamageType.h"
+#include "../GameFramework/TrunkShotDamageType.h"
 
 UAttributeComponent::UAttributeComponent()
 {
@@ -55,6 +57,11 @@ void UAttributeComponent::IncreaseHealth(float HealthIncrement)
 	SetHealth(Health + HealthIncrement);
 }
 
+void UAttributeComponent::DecreaseHealth(float HealthDecrement)
+{
+	SetHealth(Health - HealthDecrement);
+}
+
 void UAttributeComponent::OnRep_Health(float OldHealth)
 {
 	HealthChangedDelegate.Broadcast(GetOwner(), OldHealth, Health);
@@ -76,31 +83,54 @@ void UAttributeComponent::IncreaseShield(float ShieldIncrement)
 	SetShield(Shield + ShieldIncrement);
 }
 
+void UAttributeComponent::DecreaseShield(float ShieldDecrement)
+{
+	SetShield(Shield - ShieldDecrement);
+}
+
 void UAttributeComponent::OnRep_Shield(float OldShield)
 {
 	SetHUDShield();
 }
 
-float UAttributeComponent::CalculateReceivedDamage(AActor* DamageActor, float Damage, const UDamageType* DamageType, AController* InstigatorController, AActor* DamageCauser)
+float UAttributeComponent::CalculateShiledReceivedDamage(float Damage)
 {
-	float ReceivedDmage = Damage;
+	return FMath::Min(Shield, Damage * ShieldDamageReduction);
+}
+
+FDamage UAttributeComponent::CalculateReceivedDamage(AActor* DamageActor, float Damage, const UDamageType* DamageType, AController* InstigatorController, AActor* DamageCauser)
+{
 	if (!IsAlive() || (IsTeammate(InstigatorController) && !bUseTeammateDamage))
 	{
-		ReceivedDmage = 0.f;
+		return { false, 0.f, 0.f, 0.f};
 	}
-	return ReceivedDmage;
+	if (DamageType && DamageType->GetClass() == UHeadShotDamageType::StaticClass())
+	{
+		return { true, Damage, Damage, 0.f };
+	}
+	if (DamageType && DamageType->GetClass() == UTrunkShotDamageType::StaticClass())
+	{
+		float DamageToShiled = CalculateShiledReceivedDamage(Damage);
+		return { false, Damage, Damage - DamageToShiled, DamageToShiled };
+	}
+	return { false, Damage, Damage, 0.f };
 }
 
 void UAttributeComponent::ReceiveDamage(AActor* DamageActor, float Damage, const UDamageType* DamageType, AController* InstigatorController, AActor* DamageCauser)
 {
-	float ReceivedDamage = CalculateReceivedDamage(DamageActor, Damage, DamageType, InstigatorController, DamageCauser);
-	if (ReceivedDamage == 0.f) return;
+	FDamage ReceivedDamage = CalculateReceivedDamage(DamageActor, Damage, DamageType, InstigatorController, DamageCauser);
+	if (ReceivedDamage.TotalDamage == 0.f) return;
 	
-	HealthChangedDelegate.Broadcast(GetOwner(), Health, Health - ReceivedDamage);
-	SetHealth(Health - ReceivedDamage);
+	const float NewHealth = Health - ReceivedDamage.DamageToHealth;
+	HealthChangedDelegate.Broadcast(GetOwner(), Health, NewHealth);
+	SetHealth(NewHealth);
+
+	const float NewShield = Shield - ReceivedDamage.DamageToShield;
+	SetShield(NewShield);
+
 	if (!IsAlive() && MyCharacter)
 	{
-		Eliminate(DamageActor, InstigatorController, DamageCauser);
+		Eliminate(DamageActor, InstigatorController, DamageCauser, ReceivedDamage.bHeadShot);
 	}
 }
 
@@ -109,7 +139,7 @@ bool UAttributeComponent::IsAlive()
 	return Health > 0.f;
 }
 
-void UAttributeComponent::Eliminate(AActor* DamageActor, AController* InstigatorController, AActor* DamageCauser)
+void UAttributeComponent::Eliminate(AActor* DamageActor, AController* InstigatorController, AActor* DamageCauser, bool bHeadShot)
 {
 	if (!MyCharacter || IsAlive()) return;
 	
@@ -124,7 +154,7 @@ void UAttributeComponent::Eliminate(AActor* DamageActor, AController* Instigator
 		AMyPlayerController* VictimController = MyController ? MyController : Cast<AMyPlayerController>(MyCharacter->Controller);
 		if (MyGameMode && AttackerController && VictimController)
 		{
-			MyGameMode->PlayerEliminated(MyCharacter, AttackerController, VictimController);
+			MyGameMode->PlayerEliminated(MyCharacter, AttackerController, VictimController, bHeadShot);
 		}
 
 		MyCharacter->GetWorldTimerManager().SetTimer(
@@ -149,7 +179,7 @@ void UAttributeComponent::EliminateTimerFinished()
 
 void UAttributeComponent::SetEliminatedCollision()
 {
-	if (!MyCharacter || IsAlive()) return;
+	if (IsAlive() || !MyCharacter || !MyCharacter->GetCapsuleComponent() || !MyCharacter->GetMesh()) return;
 
 	//MyCharacter->GetCapsuleComponent()->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 	MyCharacter->GetCapsuleComponent()->SetCollisionResponseToAllChannels(ECollisionResponse::ECR_Ignore);
@@ -253,10 +283,21 @@ void UAttributeComponent::SetHUDDefeats(int32 Defeats)
 {
 	if (!IsHUDVaild()) return;
 
-	if (AttributeWidget->ScoreText)
+	if (AttributeWidget->DefeatsText)
 	{
 		FString DefeatsString = FString::Printf(TEXT("%d"), Defeats);
 		AttributeWidget->DefeatsText->SetText(FText::FromString(DefeatsString));
+	}
+}
+
+void UAttributeComponent::SetHUDHeadShots(int32 HeadShots)
+{
+	if (!IsHUDVaild()) return;
+
+	if (AttributeWidget->HeadShotsText)
+	{
+		FString HeadShotsString = FString::Printf(TEXT("%d"), HeadShots);
+		AttributeWidget->HeadShotsText->SetText(FText::FromString(HeadShotsString)); 
 	}
 }
 

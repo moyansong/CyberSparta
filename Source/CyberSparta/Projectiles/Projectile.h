@@ -31,8 +31,8 @@ public:
 	virtual void Destroyed() override;
 
 //------------------------------------------Functions----------------------------------------------------------
-	FORCEINLINE UBoxComponent* GetCollisionComponent() { return CollisionComponent; }
-	FORCEINLINE UStaticMeshComponent* GetMesh() { return MeshComponent; }
+	FORCEINLINE UBoxComponent* GetCollisionComponent() const { return CollisionComponent; }
+	FORCEINLINE UStaticMeshComponent* GetMesh() const { return MeshComponent; }
 
 	FORCEINLINE float GetDamage() const { return Damage; }
 	FORCEINLINE float GetHeadShotDamage() const { return HeadShotDamage; }
@@ -44,7 +44,9 @@ public:
 	virtual void ApplyDamage(UPrimitiveComponent* HitComp, AActor* OtherActor, UPrimitiveComponent* OtherComp, FVector NormalImpulse, const FHitResult& Hit);
 
 	void Explode();// 只会在Server施加伤害
-//--------------------------------------------RPC----------------------------------------------------------
+
+	FORCEINLINE void SetUseServerSideRewind(bool UseServerSideRewind) { bUseServerSideRewind = UseServerSideRewind; }
+
 	UFUNCTION()
 	virtual void SimulateHit();
 	
@@ -64,6 +66,7 @@ private:
 protected:
 	UPROPERTY(VisibleAnywhere)
 	UProjectileMovementComponent* ProjectileMovementComponent; // 子类里创建
+
 //------------------------------------------Parameters----------------------------------------------------------
 	UPROPERTY(EditDefaultsOnly, Category = Net)
 	bool bShouldSimulateHit = true;
@@ -86,6 +89,7 @@ protected:
 	UPROPERTY(EditAnywhere, Category = Net)
 	bool bUseServerSideRewind = true;
 
+	// 必须设置这两个值才能使用ServerSideRewind
 	FVector_NetQuantize TraceStart;
 	FVector_NetQuantize100 InitialVelocity;
 

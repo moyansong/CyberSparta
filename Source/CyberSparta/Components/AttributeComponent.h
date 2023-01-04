@@ -16,6 +16,24 @@ class UAttributeWidget;
 class AMyGameMode;
 class AMyPlayerState;
 
+USTRUCT(BlueprintType)
+struct FDamage
+{
+	GENERATED_BODY()
+
+	UPROPERTY()
+	bool bHeadShot;
+
+	UPROPERTY()
+	float TotalDamage;
+
+	UPROPERTY()
+	float DamageToHealth;
+
+	UPROPERTY()
+	float DamageToShield;
+};
+
 // 任何需要初始化在HUD里的东西，都要在以下几个接口设置
 // 1.MyPlayerController::InitializeInProgrossWidget;
 // 2.AMyCharacter::Initialized();
@@ -30,39 +48,29 @@ protected:
 public:	
 	friend class AMyCharacter;
 	UAttributeComponent();
-
 	virtual void TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction) override;
 	virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
 
-//------------------------------------------------Functions------------------------------------------------------------
-	float CalculateReceivedDamage(AActor* DamageActor, float Damage, const UDamageType* DamageType, AController* InstigatorController, AActor* DamageCauser);
-	// 这个函数只会在Server调用
-	UFUNCTION()
-	void ReceiveDamage(AActor* DamageActor, float Damage, const UDamageType* DamageType, AController* InstigatorController, AActor* DamageCauser);
-	
-	// 在Server和Client都会调用
-	UFUNCTION()
-	void Eliminate(AActor* DamageActor, AController* InstigatorController, AActor* DamageCauser);
-
-	void EliminateTimerFinished();
-	
 //------------------------------------------------Set&&Get------------------------------------------------------------
-	FORCEINLINE float GetHealth() const { return Health; }
-	FORCEINLINE float GetMaxHealth() const { return MaxHealth; }
 	void SetHealth(float NewHealth);
 	void IncreaseHealth(float HealthIncrement);
+	void DecreaseHealth(float HealthDecrement);
+	FORCEINLINE float GetHealth() const { return Health; }
+	FORCEINLINE float GetMaxHealth() const { return MaxHealth; }
 
-	FORCEINLINE float GetShield() const { return Shield; }
-	FORCEINLINE float GetMaxShield() const { return MaxShield; }
 	void SetShield(float NewShield);
 	void IncreaseShield(float ShieldIncrement);
-	
+	void DecreaseShield(float ShieldDecrement);
+	FORCEINLINE float GetShield() const { return Shield; }
+	FORCEINLINE float GetMaxShield() const { return MaxShield; }
+	FORCEINLINE float GetShieldDamageReduction() const { return ShieldDamageReduction; }
+
 	bool IsHUDVaild();
-	void UpdateHUD(AMyHUD* PlayerHUD);
 	void SetHUDHealth();
 	void SetHUDShield();
 	void SetHUDScore(float Score);
 	void SetHUDDefeats(int32 Defeats);
+	void SetHUDHeadShots(int32 HeadShots);
 
 	void SetEliminatedCollision();
 
@@ -70,6 +78,23 @@ public:
 	bool IsAlive();
 
 	bool IsTeammate(AController* OtherPlayerController);
+
+//------------------------------------------------Functions------------------------------------------------------------
+	FDamage CalculateReceivedDamage(AActor* DamageActor, float Damage, const UDamageType* DamageType, AController* InstigatorController, AActor* DamageCauser);
+	
+	float CalculateShiledReceivedDamage(float Damage);
+
+	// 这个函数只会在Server调用
+	UFUNCTION()
+	void ReceiveDamage(AActor* DamageActor, float Damage, const UDamageType* DamageType, AController* InstigatorController, AActor* DamageCauser);
+	
+	// 在Server和Client都会调用
+	UFUNCTION()
+	void Eliminate(AActor* DamageActor, AController* InstigatorController, AActor* DamageCauser, bool bHeadShot = false);
+
+	void EliminateTimerFinished();
+	
+	void UpdateHUD(AMyHUD* PlayerHUD);
 
 //------------------------------------------------Parameters--------------------------------------------------------------
 	UPROPERTY(BlueprintAssignable)
@@ -99,10 +124,15 @@ private:
 	UPROPERTY(EditAnywhere, Category = Attribute)
 	float MaxShield = 100.f;
 
+	// 防弹衣，打中躯干部分(上半身除了头和胳膊部分)可以减伤
 	UPROPERTY(ReplicatedUsing = OnRep_Shield, EditAnywhere, Category = Attribute)
-	float Shield = 100.f; // 防弹衣用，后续改成打中人物上身减免部分伤害
+	float Shield = 100.f; 
 	UFUNCTION()
 	void OnRep_Shield(float OldShield);
+
+	// 防弹衣减伤比例
+	UPROPERTY(EditAnywhere, Category = Attribute)
+	float ShieldDamageReduction = 0.4f;
 
 	FTimerHandle EliminateTimer;
 

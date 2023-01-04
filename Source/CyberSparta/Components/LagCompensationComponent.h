@@ -50,7 +50,10 @@ struct FServerSideRewindResult
 	bool bHitConfirmed; // 是否打中
 
 	UPROPERTY()
-	bool bHeadShot;	// 是否打中头
+	bool bHeadShot;		// 是否打中头
+
+	UPROPERTY()
+	bool bTrunkShot;	// 是否打中躯干
 };
 
 USTRUCT(BlueprintType)
@@ -59,10 +62,13 @@ struct FShotgunServerSideRewindResult
 	GENERATED_BODY()
 
 	UPROPERTY()
-	TMap<AMyCharacter*, uint32> HeadShots;// 每个角色打中身体的次数
+	TMap<AMyCharacter*, uint32> HeadShots;// 每个角色打中头的次数
 
 	UPROPERTY()
-	TMap<AMyCharacter*, uint32> BodyShots;// 每个角色打中头的次数
+	TMap<AMyCharacter*, uint32> BodyShots;// 每个角色打中身体的次数
+
+	UPROPERTY()
+	TMap<AMyCharacter*, uint32> TrunkShots;// 每个角色打中躯干的次数
 };
 
 UCLASS( ClassGroup=(Custom), meta=(BlueprintSpawnableComponent) )
@@ -126,6 +132,9 @@ protected:
 
 	// 获取当前帧的HitCharacter的Box信息，通过OutFramePackage传出
 	void CacheBoxPositions(AMyCharacter* HitCharacter, FFramePackage& OutFramePackage);
+
+	// 检查打中的部位是否为躯干
+	bool IsTrunkShot(const FHitResult& HitResult);
 //--------------------------------------------Parameters-------------------------------------------------------------
 	UPROPERTY()
 	AMyCharacter* MyCharacter;

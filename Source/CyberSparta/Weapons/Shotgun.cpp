@@ -14,16 +14,16 @@
 
 AShotgun::AShotgun()
 {
+	Ammo = 6;
+	MaxAmmo = 6;
+	Damage = 10.f;
+	FireDelay = 1.f;
+	ReloadDuration = 2.f;
+	HeadShotDamage = 20.f;
 	bCanTarget = false;
 	bUseScatter = true;
 	bCanAutomaticFire = false;
 	bUseServerSideRewind = true;
-	FireDelay = 1.f;
-	ReloadDuration = 2.f;
-	MaxAmmo = 6;
-	Ammo = MaxAmmo;
-	Damage = 10.f;
-	HeadShotDamage = 20.f;
 	WeaponType = EWeaponType::EWT_Shotgun;
 }
 

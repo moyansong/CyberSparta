@@ -108,11 +108,19 @@ void AProjectile::SimulateHit()
 {
 	if (ImpactEffect)
 	{
-		UGameplayStatics::SpawnEmitterAtLocation(GetWorld(), ImpactEffect, GetActorTransform());
+		UGameplayStatics::SpawnEmitterAtLocation(
+			GetWorld(), 
+			ImpactEffect, 
+			GetActorTransform()
+		);
 	}
 	if (ImpactSound)
 	{
-		UGameplayStatics::PlaySoundAtLocation(this, ImpactSound, GetActorLocation());
+		UGameplayStatics::PlaySoundAtLocation(
+			this, 
+			ImpactSound, 
+			GetActorLocation()
+		);
 	}
 }
 

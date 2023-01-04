@@ -31,20 +31,23 @@ protected:
 public:
 	AMyGameMode();
 	virtual void Tick(float DeltaTime) override;
-	virtual void SetMatchState(FName NewState) override;
 
 	// 玩家淘汰
-	virtual void PlayerEliminated(AMyCharacter* ElimmedCharacter, AMyPlayerController* AttackerController, AMyPlayerController* VictimController);
+	virtual void PlayerEliminated(AMyCharacter* ElimmedCharacter, AMyPlayerController* AttackerController, AMyPlayerController* VictimController, bool bHeadShot = false);
 
 	// 重生
 	virtual void RequestRespawn(ACharacter* ElimmedCharacter, AController* ElimmedController);
 
 	void PlayerLeftGame(AMyPlayerState* PlayerState);
 
-	void UpdatePlayerState(AMyPlayerState* AttackerPlayerState, AMyPlayerState* VictimPlayerState);
-	void UpdateGameState(AMyPlayerState* AttackerPlayerState, AMyPlayerState* VictimPlayerState);
+	void UpdatePlayerState(AMyPlayerState* AttackerPlayerState, AMyPlayerState* VictimPlayerState, bool bHeadShot = false);
+	void UpdateGameState(AMyPlayerState* AttackerPlayerState, AMyPlayerState* VictimPlayerState, bool bHeadShot = false);
 
+//-----------------------------------------------Set && Get-----------------------------------------------------
 	FORCEINLINE float GetCountdownTime() const { return CountdownTime; }
+
+	virtual void SetMatchState(FName NewState) override;
+
 //-----------------------------------------------Parameters-----------------------------------------------------
 	UPROPERTY(EditDefaultsOnly, Category = Time)
 	float WarmupTime = 5.f; // 过几秒再Spawn Pawn

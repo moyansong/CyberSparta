@@ -6,9 +6,6 @@
 #include "Weapon.h"
 #include "SpecialWeapon.generated.h"
 
-/**
- * 
- */
 UCLASS()
 class CYBERSPARTA_API ASpecialWeapon : public AWeapon
 {

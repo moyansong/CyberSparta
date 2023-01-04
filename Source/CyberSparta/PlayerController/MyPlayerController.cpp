@@ -225,6 +225,7 @@ void AMyPlayerController::InitializeInProgressWidget()
 	{
 		SetHUDScore(MyPlayerState->GetScore());
 		SetHUDDefeats(MyPlayerState->GetDefeats());
+		SetHUDHeadShots(MyPlayerState->GetHeadShots());
 	}
 }
 
@@ -330,6 +331,15 @@ void AMyPlayerController::SetHUDDefeats(int32 Defeats)
 	if (MyCharacter && MyCharacter->GetAttributeComponent())
 	{
 		MyCharacter->GetAttributeComponent()->SetHUDDefeats(Defeats);
+	}
+}
+
+void AMyPlayerController::SetHUDHeadShots(int32 HeadShots)
+{
+	MyCharacter = Cast<AMyCharacter>(GetPawn());
+	if (MyCharacter && MyCharacter->GetAttributeComponent())
+	{
+		MyCharacter->GetAttributeComponent()->SetHUDHeadShots(HeadShots);
 	}
 }
 

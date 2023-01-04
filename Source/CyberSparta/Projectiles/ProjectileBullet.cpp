@@ -10,6 +10,8 @@
 #include "../Weapons/Weapon.h"
 #include "../PlayerController/MyPlayerController.h"
 #include "../Components/LagCompensationComponent.h"
+#include "../GameFramework/HeadShotDamageType.h"
+#include "../GameFramework/TrunkShotDamageType.h"
 
 AProjectileBullet::AProjectileBullet()
 {
@@ -90,14 +92,26 @@ void AProjectileBullet::ApplyDamage(UPrimitiveComponent* HitComp, AActor* OtherA
 			{
 				if (HasAuthority() && MyCharacter->GetEquippedWeapon() && !MyCharacter->GetEquippedWeapon()->UseServerSideRewind())
 				{
-					FString HitBone = Hit.BoneName.ToString();
-					float DamageToCause = ((HitBone == FString("head") || HitBone == FString("Head")) ? HeadShotDamage : Damage);
+					float DamageToCause = Damage;
+					TSubclassOf<UDamageType> DamageTypeClass = UDamageType::StaticClass();
+
+					FName HitBone = Hit.BoneName;
+					if (HitBone == FName("Head"))
+					{
+						DamageTypeClass = UHeadShotDamageType::StaticClass();
+						DamageToCause = HeadShotDamage;
+					}
+					else if (HitBone == FName("spine_01") || HitBone == FName("spine_01") || HitBone == FName("spine_01"))
+					{
+						DamageTypeClass = UTrunkShotDamageType::StaticClass();
+					}
+
 					UGameplayStatics::ApplyDamage(
 						OtherActor,
 						DamageToCause,
 						MyController,
 						MyCharacter->GetEquippedWeapon(),
-						UDamageType::StaticClass()
+						DamageTypeClass
 					); 
 				}
 			}

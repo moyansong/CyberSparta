@@ -53,3 +53,4 @@ static void Cout(UObject* WorldContext, float Num, FColor Color = FColor::Red, f
 		GEngine->AddOnScreenDebugMessage(-1, Duration, FColor::Red, NetPrefix + FString::Printf(TEXT("%f"), Num));
 	}
 }
+

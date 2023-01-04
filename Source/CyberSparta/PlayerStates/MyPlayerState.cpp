@@ -13,6 +13,7 @@ void AMyPlayerState::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLi
 	Super::GetLifetimeReplicatedProps(OutLifetimeProps);
 
 	DOREPLIFETIME(AMyPlayerState, Defeats);
+	DOREPLIFETIME(AMyPlayerState, HeadShots);
 	DOREPLIFETIME(AMyPlayerState, Team);
 }
 
@@ -24,6 +25,7 @@ void AMyPlayerState::OnRep_Score()
 	if (MyCharacter)
 	{
 		MyController = MyController ? MyController : Cast<AMyPlayerController>(MyCharacter->Controller);
+		// 能获得Controller就代表是本地控制的
 		if (MyController)
 		{
 			MyController->SetHUDScore(GetScore()); 
@@ -68,6 +70,33 @@ void AMyPlayerState::IncreaseDefeats(int32 DefeatsIncrement)
 		if (MyController)
 		{
 			MyController->SetHUDDefeats(Defeats);
+		}
+	}
+}
+
+void AMyPlayerState::OnRep_HeadShots()
+{
+	MyCharacter = MyCharacter ? MyCharacter : Cast<AMyCharacter>(GetPawn());
+	if (MyCharacter)
+	{
+		MyController = MyController ? MyController : Cast<AMyPlayerController>(MyCharacter->Controller);
+		if (MyController)
+		{
+			MyController->SetHUDHeadShots(HeadShots);
+		}
+	}
+}
+
+void AMyPlayerState::IncreaseHeadShots(int32 HeadShotsIncrement)
+{
+	HeadShots += HeadShotsIncrement;
+	MyCharacter = MyCharacter ? MyCharacter : Cast<AMyCharacter>(GetPawn());
+	if (MyCharacter)
+	{
+		MyController = MyController ? MyController : Cast<AMyPlayerController>(MyCharacter->Controller);
+		if (MyController)
+		{
+			MyController->SetHUDHeadShots(HeadShots);
 		}
 	}
 }

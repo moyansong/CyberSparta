@@ -8,12 +8,17 @@
 #include "../Weapons/Weapon.h"
 #include "../CyberSparta.h"
 #include "../Types/CombatState.h"
+#include "../Components/CombatComponent.h"
 
 void UMyAnimInstance::NativeInitializeAnimation()
 {
 	Super::NativeInitializeAnimation();
 
 	MyCharacter = Cast<AMyCharacter>(TryGetPawnOwner());
+	if (MyCharacter)
+	{
+		MyMovementComponent = MyCharacter->GetCharacterMovement();
+	}
 }
 
 void UMyAnimInstance::NativeUpdateAnimation(float DeltaTime)
@@ -22,20 +27,22 @@ void UMyAnimInstance::NativeUpdateAnimation(float DeltaTime)
 	
 	MyCharacter = MyCharacter ? MyCharacter : Cast<AMyCharacter>(TryGetPawnOwner());
 	if (!MyCharacter) return;
+	MyMovementComponent = MyMovementComponent ? MyMovementComponent : MyCharacter->GetCharacterMovement();
+	if (!MyMovementComponent) return;
 
-	FVector Velocity = MyCharacter->GetVelocity();
-	Velocity.Z = 0.f;
-	Speed = Velocity.Size();
-
-	bIsInAir = MyCharacter->GetCharacterMovement()->IsFalling();
-	bIsAccelerating = MyCharacter->GetCharacterMovement()->GetCurrentAcceleration().Size() > 0 ? true : false;
+	Speed = UKismetMathLibrary::VSizeXY(MyMovementComponent->Velocity);
+	bIsInAir = MyMovementComponent->IsFalling();
+	bIsAccelerating = MyMovementComponent->GetCurrentAcceleration().Size() > 0 ? true : false;
 	bIsCrouched = MyCharacter->bIsCrouched;
 
 	bWeaponEquipped = MyCharacter->IsWeaponEquipped();
 	EquippedWeapon = MyCharacter->GetEquippedWeapon();
+	EquippedWeaponType = EquippedWeapon ? EquippedWeapon->GetWeaponType() : EWeaponType::EWT_Fist;
+
 	bIsAiming = MyCharacter->IsAiming();
 	bIsAlive = MyCharacter->IsAlive();
 	bUseAimOffset = MyCharacter->GetCombatState() != ECombatState::ECS_Reloading && bIsAlive && !MyCharacter->GetDisableGameplay();
+
 	bUseRightHandRotation = bIsAlive &&
 							bIsAiming &&
 							EquippedWeapon &&

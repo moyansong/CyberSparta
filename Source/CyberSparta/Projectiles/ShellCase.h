@@ -26,6 +26,11 @@ private:
 	UPROPERTY(EditAnywhere)
 	UStaticMeshComponent* MeshComponent;
 
+	// 弹壳弹出时的冲量最小值
 	UPROPERTY(EditAnywhere, Category = Parameters)
-	float ShellEjectionImpluse = 10.f;
+	float MinShellEjectionImpluse = 10.f;
+
+	// 弹壳弹出时的冲量最大值
+	UPROPERTY(EditAnywhere, Category = Parameters)
+	float MaxShellEjectionImpluse = 15.f;
 };

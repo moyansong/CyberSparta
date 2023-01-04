@@ -259,13 +259,13 @@ void UCombatComponent::OnRep_CurrWeaponIndex()
 
 void UCombatComponent::ThrowWeapon()
 {
-	if (!EquippedWeapon || !MyCharacter || CombatState != ECombatState::ECS_Idle) return;
+	if (!EquippedWeapon || !EquippedWeapon->CanDrop() || !MyCharacter || CombatState != ECombatState::ECS_Idle) return;
 
 	if (MyCharacter->HasAuthority())
 	{
 		FVector ThrowDirection = MyCharacter->GetFollowCamera() ? MyCharacter->GetFollowCamera()->GetForwardVector() : MyCharacter->GetActorForwardVector();
 		EquippedWeapon->Throw(ThrowDirection, 2000.f);
-		RemoveWeapon(EquippedWeapon);
+		RemoveWeapon(EquippedWeapon); 
 	}
 	else
 	{
@@ -336,25 +336,6 @@ void UCombatComponent::FireStart()
 	}
 }
 
-void UCombatComponent::FireStop()
-{
-	if (MyCharacter && EquippedWeapon)
-	{
-		EquippedWeapon->FireStop();
-		if (EquippedWeapon->CanAutomaticFire())
-		{
-			MyCharacter->GetWorldTimerManager().ClearTimer(FireTimer);
-			MyCharacter->GetWorldTimerManager().SetTimer(
-				FireTimer,
-				this,
-				&UCombatComponent::FireFinished,
-				EquippedWeapon->GetFireDelay(),
-				false
-			);
-		}
-	}
-}
-
 void UCombatComponent::FireFinished()
 {
 	if (CombatState == ECombatState::ECS_Firing)
@@ -411,6 +392,42 @@ void UCombatComponent::MulticastFire_Implementation(const FVector_NetQuantize100
 {
 	if (MyCharacter && MyCharacter->IsLocallyControlled()) return;
 	LocalFire(HitTarget);
+}
+
+void UCombatComponent::FireStop()
+{
+	LocalFireStop();
+	ServerFireStop();
+	if (MyCharacter && EquippedWeapon)
+	{
+		if (EquippedWeapon->CanAutomaticFire())
+		{
+			MyCharacter->GetWorldTimerManager().ClearTimer(FireTimer);
+			MyCharacter->GetWorldTimerManager().SetTimer(
+				FireTimer,
+				this,
+				&UCombatComponent::FireFinished,
+				EquippedWeapon->GetFireDelay(),
+				false
+			);
+		}
+	}
+}
+
+void UCombatComponent::LocalFireStop()
+{
+	EquippedWeapon->FireStop();
+}
+
+void UCombatComponent::ServerFireStop_Implementation()
+{
+	MulticastFireStop();
+}
+
+void UCombatComponent::MulticastFireStop_Implementation()
+{
+	if (MyCharacter && MyCharacter->IsLocallyControlled()) return;
+	LocalFireStop();
 }
 
 void UCombatComponent::TargetStart()

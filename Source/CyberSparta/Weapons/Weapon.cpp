@@ -39,7 +39,7 @@ AWeapon::AWeapon()
 	InteractWidgetComponent = CreateDefaultSubobject<UWidgetComponent>(TEXT("InteractWidget"));
 	InteractWidgetComponent->SetupAttachment(RootComponent);
 
-	SetWeaponState(EWeaponState::EWS_Initial);
+	SetWeaponState(EWeaponState::EWS_Initialized);
 	
 }
 
@@ -192,6 +192,11 @@ void AWeapon::SetInteractText(const FString& InteractString)
 	}
 }
 
+bool AWeapon::CanReload()
+{
+	return bCanReload;
+}
+
 void AWeapon::ReloadStart()
 {
 }
@@ -216,7 +221,7 @@ void AWeapon::ReloadFinished()
 
 bool AWeapon::UseRightHandRotation()
 {
-	return true;
+	return bUseRightHandRotation;
 }
 
 bool AWeapon::CanFire()
@@ -231,6 +236,7 @@ void AWeapon::FireStart(const FVector& HitTarget)
 
 void AWeapon::FireStop()
 {
+	
 }
 
 void AWeapon::SimulateFire()
@@ -248,6 +254,8 @@ void AWeapon::Equip()
 
 void AWeapon::Drop()
 {
+	if (!CanDrop()) return;
+
 	SetWeaponState(EWeaponState::EWS_Dropped);
 	FDetachmentTransformRules DetachRules(EDetachmentRule::KeepWorld, true);
 	MeshComponent->DetachFromComponent(DetachRules);
@@ -259,6 +267,8 @@ void AWeapon::Drop()
 
 void AWeapon::Throw(FVector ThrowDirection, float Force)
 {
+	if (!CanDrop()) return;
+
 	Drop();
 	if (MeshComponent)
 	{
@@ -281,7 +291,7 @@ void AWeapon::OnStateChanged()
 {
 	switch (WeaponState)
 	{
-	case EWeaponState::EWS_Initial:
+	case EWeaponState::EWS_Initialized:
 		break;
 	case EWeaponState::EWS_Equipped:
 		OnEquipped();
