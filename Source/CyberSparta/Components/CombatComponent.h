@@ -29,9 +29,17 @@ public:
 	virtual void UninitializeComponent() override;
 //-----------------------------------------------Functions------------------------------------------------------------
 	UFUNCTION()
-	void EquipWeapon(int32 Value); // 在Server和Client都会调用
+	void EquipWeapon(int32 Value, bool bThrowLastWeapon = false); // 在Server和Client都会调用
 
 	void LocalEquipWeapon();
+
+	// 设置新武器的状态，利用动画通知调用
+	void EquipNewWeapon();
+
+	void EquipFinished();
+
+	// 设置上一把武器的状态，利用动画通知调用
+	void UnequipLastWeapon();
 
 	UFUNCTION()
 	void ThrowWeapon();
@@ -138,7 +146,7 @@ protected:
 	void ServerAddWeapon(AWeapon* Weapon);
 
 	UFUNCTION(Server, Reliable)
-	void ServerEquipWeapon(int32 Value);
+	void ServerEquipWeapon(int32 Value, bool bThrowLastWeapon);
 
 	UFUNCTION(Server, Reliable)
 	void ServerThrowWeapon();

@@ -5,7 +5,7 @@
 #include "Net/UnrealNetwork.h"
 #include "../CyberSparta.h"
 #include "../Characters/MyCharacter.h"
-#include "../Buffs/Buff.h"
+#include "../Actors/Buffs/Buff.h"
 
 UBuffComponent::UBuffComponent()
 {
@@ -34,7 +34,7 @@ void UBuffComponent::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLi
 
 void UBuffComponent::AddBuff(ABuff* Buff)
 {
-	MyCharacter = MyCharacter ? MyCharacter : Cast<AMyCharacter>(GetOwner());
+	if (!MyCharacter) MyCharacter = Cast<AMyCharacter>(GetOwner());
 	if (MyCharacter && MyCharacter->HasAuthority())
 	{
 		bool bIsOwned = false;

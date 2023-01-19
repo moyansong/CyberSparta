@@ -25,35 +25,47 @@ void UMyAnimInstance::NativeUpdateAnimation(float DeltaTime)
 {
 	Super::NativeUpdateAnimation(DeltaTime);
 	
-	MyCharacter = MyCharacter ? MyCharacter : Cast<AMyCharacter>(TryGetPawnOwner());
+	if (!MyCharacter) MyCharacter = Cast<AMyCharacter>(TryGetPawnOwner());
 	if (!MyCharacter) return;
-	MyMovementComponent = MyMovementComponent ? MyMovementComponent : MyCharacter->GetCharacterMovement();
+	if (!MyMovementComponent) MyMovementComponent = MyCharacter->GetCharacterMovement();
 	if (!MyMovementComponent) return;
 
 	Speed = UKismetMathLibrary::VSizeXY(MyMovementComponent->Velocity);
+
+	bIsCrouched = MyCharacter->bIsCrouched;
 	bIsInAir = MyMovementComponent->IsFalling();
 	bIsAccelerating = MyMovementComponent->GetCurrentAcceleration().Size() > 0 ? true : false;
-	bIsCrouched = MyCharacter->bIsCrouched;
 
 	bWeaponEquipped = MyCharacter->IsWeaponEquipped();
 	EquippedWeapon = MyCharacter->GetEquippedWeapon();
 	EquippedWeaponType = EquippedWeapon ? EquippedWeapon->GetWeaponType() : EWeaponType::EWT_Fist;
 
-	bIsAiming = MyCharacter->IsAiming();
 	bIsAlive = MyCharacter->IsAlive();
-	bUseAimOffset = MyCharacter->GetCombatState() != ECombatState::ECS_Reloading && bIsAlive && !MyCharacter->GetDisableGameplay();
+	bIsAiming = MyCharacter->IsAiming();
+
+	HitDirection = MyCharacter->GetHitDirection();
+	if (bIsAlive) DeathPoseIndex = FMath::RandRange(0, 3);
+
+	bUseAimOffset = bIsAlive &&
+					EquippedWeapon &&
+					!MyCharacter->GetDisableGameplay() &&
+					MyCharacter->GetCombatState() != ECombatState::ECS_Reloading &&
+					MyCharacter->GetCombatState() != ECombatState::ECS_Equipping;
+
+	bUseLeftHandIK = bIsAlive &&
+					 EquippedWeapon &&
+					 EquippedWeapon->UseLeftHandIK() &&
+				     !MyCharacter->GetDisableGameplay() &&
+					 MyCharacter->GetCombatState() != ECombatState::ECS_Reloading &&
+					 MyCharacter->GetCombatState() != ECombatState::ECS_Equipping;
 
 	bUseRightHandRotation = bIsAlive &&
 							bIsAiming &&
 							EquippedWeapon &&
 							EquippedWeapon->UseRightHandRotation() &&
 							!MyCharacter->GetDisableGameplay() &&
-							MyCharacter->GetCombatState() != ECombatState::ECS_Reloading;
-	bUseLeftHandIK = bIsAlive &&
-					 EquippedWeapon && 
-					 EquippedWeapon->UseLeftHandIK() &&
-					 !MyCharacter->GetDisableGameplay() && 
-					 MyCharacter->GetCombatState() != ECombatState::ECS_Reloading;
+							MyCharacter->GetCombatState() != ECombatState::ECS_Reloading &&
+							MyCharacter->GetCombatState() != ECombatState::ECS_Equipping;
 
 	FRotator AimRotation = MyCharacter->GetBaseAimRotation();
 	FRotator MovementRotation = UKismetMathLibrary::MakeRotFromX(MyCharacter->GetVelocity());
@@ -80,7 +92,7 @@ void UMyAnimInstance::AimOffset(float DeltaTime)
 
 void UMyAnimInstance::SetHandTransform(float DeltaTime)
 {
-	if (!MyCharacter || !bWeaponEquipped || !EquippedWeapon || !EquippedWeapon->IsRangedWeapon() || !bIsAlive) return;
+	if (!MyCharacter || !bWeaponEquipped || !EquippedWeapon->IsRangedWeapon() || !bIsAlive) return;
 
 	USkeletalMeshComponent* WeaponMesh = EquippedWeapon->GetMesh();
 	USkeletalMeshComponent* CharacterMesh = MyCharacter->GetMesh();
@@ -91,7 +103,13 @@ void UMyAnimInstance::SetHandTransform(float DeltaTime)
 		LeftHandTransform = WeaponMesh->GetSocketTransform(FName("LeftHandSocket"), ERelativeTransformSpace::RTS_World);
 		FVector OutPosition;
 		FRotator OutRotation;
-		CharacterMesh->TransformToBoneSpace(FName("hand_r"), LeftHandTransform.GetLocation(), FRotator::ZeroRotator, OutPosition, OutRotation);
+		CharacterMesh->TransformToBoneSpace(
+			FName("hand_r"), 
+			LeftHandTransform.GetLocation(), 
+			FRotator::ZeroRotator, 
+			OutPosition, 
+			OutRotation
+		);
 		LeftHandTransform.SetLocation(OutPosition);
 		LeftHandTransform.SetRotation(FQuat(OutRotation));
 
@@ -119,10 +137,4 @@ void UMyAnimInstance::SetHandTransform(float DeltaTime)
 	}
 }
 
-void UMyAnimInstance::OnWeaponEquipped()
-{
-	EquippedWeapon = MyCharacter->GetEquippedWeapon();
-	if (!EquippedWeapon) return;
 
-	//if (EquippedWeapon->AS_Idle) AS_Idle = EquippedWeapon->AS_Idle;
-}

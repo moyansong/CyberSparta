@@ -15,13 +15,31 @@ AProjectileRocket::AProjectileRocket()
 	InitialLifeSpan = 7.f;
 
 	GetCollisionComponent()->SetBoxExtent(FVector(20.f, 10.f, 10.f));
+
 	RocketMovementComponent = CreateDefaultSubobject<URocketMovementComponent>(TEXT("RocketMovementComponent"));
 	RocketMovementComponent->SetIsReplicated(true);
 	RocketMovementComponent->bRotationFollowsVelocity = true;
+	RocketMovementComponent->ProjectileGravityScale = 0.f;
 	RocketMovementComponent->InitialSpeed = 3000.f;
 	RocketMovementComponent->MaxSpeed = 3000.f;
-	RocketMovementComponent->ProjectileGravityScale = 0.f;
 }
+
+#if WITH_EDITOR
+void AProjectileRocket::PostEditChangeProperty(FPropertyChangedEvent& Event)
+{
+	Super::PostEditChangeProperty(Event);
+
+	FName PropertyName = Event.Property ? Event.Property->GetFName() : NAME_None;
+	if (PropertyName == GET_MEMBER_NAME_CHECKED(AProjectileRocket, InitialSpeed))
+	{
+		if (RocketMovementComponent)
+		{
+			RocketMovementComponent->MaxSpeed = InitialSpeed;
+			RocketMovementComponent->InitialSpeed = InitialSpeed;
+		}
+	}
+}
+#endif
 
 void AProjectileRocket::OnHit(UPrimitiveComponent* HitComp, AActor* OtherActor, UPrimitiveComponent* OtherComp, FVector NormalImpulse, const FHitResult& Hit)
 {
@@ -33,11 +51,11 @@ void AProjectileRocket::OnHit(UPrimitiveComponent* HitComp, AActor* OtherActor, 
 
 	if (bReplicates && HasAuthority())
 	{
-		if (HitCharacter) HitCharacter->MulticastHit(GetActorRotation(), GetActorLocation());
+		if (HitCharacter) HitCharacter->MulticastHit(GetActorLocation());
 	}
 	else
 	{
-		if (HitCharacter) HitCharacter->SimulateHit(GetActorRotation(), GetActorLocation());
+		if (HitCharacter) HitCharacter->SimulateHit(GetActorLocation());
 	}
 	Destroy();
 }

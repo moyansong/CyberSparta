@@ -7,14 +7,14 @@
 #include "Blueprint/WidgetLayoutLibrary.h"
 #include "Components/HorizontalBox.h"
 #include "Components/CanvasPanelSlot.h"
+#include "Player/AttributeWidget.h"
+#include "Player/WeaponWidget.h"
+#include "GameState/GameStateWidget.h"
+#include "GameState/AnnouncementWidget.h"
+#include "GameState/SettlementWidget.h"
+#include "GameState/KillAnnouncementWidget.h"
 #include "../CyberSparta.h"
-#include "../PlayerController/MyPlayerController.h"
-#include "AttributeWidget.h"
-#include "WeaponWidget.h"
-#include "GameStateWidget.h"
-#include "AnnouncementWidget.h"
-#include "SettlementWidget.h"
-#include "KillAnnouncementWidget.h"
+#include "../Game/PlayerControllers/MyPlayerController.h"
 
 void AMyHUD::BeginPlay()
 {
@@ -25,15 +25,15 @@ void AMyHUD::BeginPlay()
 
 void AMyHUD::CreateInProgressWidget()
 {
-	AttributeWidget = Cast<UAttributeWidget>(CreateAndAddWidget(AttributeWidgetClass));
 	WeaponWidget = Cast<UWeaponWidget>(CreateAndAddWidget(WeaponWidgetClass));
+	AttributeWidget = Cast<UAttributeWidget>(CreateAndAddWidget(AttributeWidgetClass));
 	GameStateWidget = Cast<UGameStateWidget>(CreateAndAddWidget(GameStateWidgetClass));
 }
 
 void AMyHUD::RemoveInProgressWidget()
 {
-	if (AttributeWidget) AttributeWidget->RemoveFromParent();
 	if (WeaponWidget) WeaponWidget->RemoveFromParent();
+	if (AttributeWidget) AttributeWidget->RemoveFromParent();
 	if (GameStateWidget) GameStateWidget->RemoveFromParent();
 }
 
@@ -94,7 +94,7 @@ void AMyHUD::DrawCrosshairs(UTexture2D* Texture, FVector2D ViewportCenter, FVect
 
 UUserWidget* AMyHUD::CreateAndAddWidget(TSubclassOf<UUserWidget> WidgetClass)
 {
-	MyController = MyController ? MyController : Cast<AMyPlayerController>(GetOwningPlayerController());
+	if (!MyController) MyController = Cast<AMyPlayerController>(GetOwningPlayerController());
 	if (MyController && WidgetClass)
 	{
 		UUserWidget* Widget = CreateWidget<UUserWidget>(MyController, WidgetClass);
@@ -122,6 +122,8 @@ void AMyHUD::AddKillAnnouncement(FString AttackerName, FString VictimName)
 	{
 		KillAnnouncementWidget->SetKillAnnouncementText(AttackerName, VictimName);
 		
+		// 将之前所有KillAnnouncementWidget下移
+		// Fix me: KillAnnouncementWidget过多时移除部分KillAnnouncementWidget
 		for (auto Widget : KillAnnouncementWidgets)
 		{
 			if (Widget && Widget->AnnouncementBox)
@@ -130,7 +132,7 @@ void AMyHUD::AddKillAnnouncement(FString AttackerName, FString VictimName)
 				if (CanvasSlot)
 				{
 					FVector2D Position = CanvasSlot->GetPosition();
-					FVector2D NewPosition(CanvasSlot->GetPosition().X, Position.Y - CanvasSlot->GetSize().Y);
+					FVector2D NewPosition(CanvasSlot->GetPosition().X, Position.Y + CanvasSlot->GetSize().Y);
 					CanvasSlot->SetPosition(NewPosition);
 				}
 			}

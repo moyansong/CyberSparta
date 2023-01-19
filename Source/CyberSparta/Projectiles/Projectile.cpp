@@ -83,24 +83,29 @@ void AProjectile::Tick(float DeltaTime)
 
 void AProjectile::OnHit(UPrimitiveComponent* HitComp, AActor* OtherActor, UPrimitiveComponent* OtherComp, FVector NormalImpulse, const FHitResult& Hit)
 {
-	AMyCharacter* HitCharacter = Cast<AMyCharacter>(OtherActor);
-	if (OtherActor == GetOwner() || (HitCharacter && !HitCharacter->IsAlive()))
+	if (OtherActor == GetOwner())
 	{
 		Destroy();
 		return;
 	}
 
+	AMyCharacter* HitCharacter = Cast<AMyCharacter>(OtherActor);
 	if (bReplicates && HasAuthority())
 	{
 		MulticastHit();
-		if (HitCharacter) HitCharacter->MulticastHit(GetActorRotation(), GetActorLocation());
+		if (HitCharacter) HitCharacter->MulticastHit(GetActorLocation());
 	}
 	else
 	{
 		SimulateHit(); 
-		if (HitCharacter) HitCharacter->SimulateHit(GetActorRotation(), GetActorLocation());
+		if (HitCharacter) HitCharacter->SimulateHit(GetActorLocation());
 	}
-	ApplyDamage(HitComp, OtherActor, OtherComp, NormalImpulse, Hit);
+
+	if (HitCharacter && HitCharacter->IsAlive())
+	{
+		ApplyDamage(HitComp, OtherActor, OtherComp, NormalImpulse, Hit);
+	}
+
 	Destroy();
 }
 

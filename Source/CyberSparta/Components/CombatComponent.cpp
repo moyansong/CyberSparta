@@ -13,24 +13,27 @@
 #include "../CyberSparta.h"
 #include "../Characters/MyAnimInstance.h"
 #include "../Weapons/Weapon.h"
-#include "../Weapons/RangedWeapon.h"
+#include "../Weapons/RangedWeapons/RangedWeapon.h"
 #include "../Characters/MyCharacter.h"
-#include "../PlayerController//MyPlayerController.h"
+#include "../Game/PlayerControllers/MyPlayerController.h"
 #include "../HUD/MyHUD.h"
-#include "../HUD/WeaponWidget.h"
-#include "../GameMode/MyGameMode.h"
+#include "../HUD/Player/WeaponWidget.h"
+#include "../Game/GameModes/MyGameMode.h"
 
 UCombatComponent::UCombatComponent()
 {
 	PrimaryComponentTick.bCanEverTick = true;
 
-	SetIsReplicated(true);
+	// 组件的复制最好在创建这个组件完成后设置，不要放在构造函数中，
+	// 因为组件的bReplicates是私有，不能直接设置这个值
+	// 构造函数中最好不要调用成员函数
+	//SetIsReplicated(true);
 }
 
 void UCombatComponent::BeginPlay()
 {
 	Super::BeginPlay();
-	MyController = MyController ? MyController : Cast<AMyPlayerController>(MyCharacter->Controller);
+	if (!MyController) MyController = Cast<AMyPlayerController>(MyCharacter->Controller);
 }
 
 void UCombatComponent::TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction)
@@ -74,6 +77,8 @@ void UCombatComponent::UninitializeComponent()
 
 void UCombatComponent::SetCombatState(ECombatState State)
 {
+	if (CombatState == State) return;
+
 	CombatState = State;
 	OnStateChanged();
 	if (MyCharacter && !MyCharacter->HasAuthority())
@@ -115,7 +120,7 @@ void UCombatComponent::SpawnDefaultWeapons()
 {
 	// 在Lobby等地方不生成默认武器,只有Server能获得GameMode
 	AMyGameMode* MyGameMode = Cast<AMyGameMode>(UGameplayStatics::GetGameMode(this));
-	MyCharacter = MyCharacter ? MyCharacter : Cast<AMyCharacter>(GetOwner());
+	if (!MyCharacter) MyCharacter = Cast<AMyCharacter>(GetOwner());
 	UWorld* World = GetWorld();
 	if (World && MyGameMode && GetOwner() && MyCharacter && MyCharacter->IsAlive())
 	{
@@ -180,7 +185,7 @@ void UCombatComponent::RemoveWeapon(AWeapon* Weapon)
 		WeaponClasses.Remove(Weapon->GetClass());
 		WeaponsNum = Weapons.Num();
 		EquippedWeapon = nullptr;
-		EquipWeapon(0);
+		EquipWeapon(0, true);
 	}
 }
 
@@ -188,7 +193,7 @@ void UCombatComponent::SetIdleWeapon(AWeapon* Weapon)
 {
 	if (!Weapon) return;
 
-	MyCharacter = MyCharacter ? MyCharacter : Cast<AMyCharacter>(GetOwner());
+	if (!MyCharacter) MyCharacter = Cast<AMyCharacter>(GetOwner());
 	if (MyCharacter && MyCharacter->GetMesh())
 	{
 		Weapon->SetOwner(GetOwner());
@@ -201,39 +206,61 @@ void UCombatComponent::SetIdleWeapon(AWeapon* Weapon)
 	}
 }
 
-void UCombatComponent::EquipWeapon(int32 Value)
+void UCombatComponent::EquipWeapon(int32 Value, bool bThrowLastWeapon)
 {
-	MyCharacter = MyCharacter ? MyCharacter : Cast<AMyCharacter>(GetOwner());
+	/* Value == 0时代表人物出生时或丢弃武器后装备新武器， != 0代表换武器 */
+
+	if (!MyCharacter) MyCharacter = Cast<AMyCharacter>(GetOwner());
 	if (!MyCharacter || CombatState != ECombatState::ECS_Idle) return;
+	if (!MyCharacter->HasAuthority()) ServerEquipWeapon(Value, bThrowLastWeapon);
 
 	if (Weapons.IsEmpty())
 	{
 		EquippedWeapon = nullptr;
-		MyCharacter->SetAnimationClass();
+		//MyCharacter->SetAnimationClass();
 		return;
 	}
 
 	int32 NewIndex = CurrWeaponIndex + Value;
-	if (NewIndex < 0) NewIndex = Weapons.Num() - 1;
-	else if (NewIndex >= Weapons.Num()) NewIndex = 0;
-	
-	// 为防止延迟先在客户端做一遍
+	if (NewIndex < 0)
+	{
+		NewIndex = Weapons.Num() - 1;
+	}
+	else if (NewIndex >= Weapons.Num())
+	{
+		NewIndex = 0;
+	}
 	CurrWeaponIndex = NewIndex;
+
 	if (EquippedWeapon)
 	{
-		EquippedWeapon->SetWeaponState(EWeaponState::EWS_Idle);
 		LastEquippedWeapon = EquippedWeapon;
+		if (Value == 0)
+		{
+			EquippedWeapon->SetWeaponState(EWeaponState::EWS_Idle);
+		}
 	}
 	EquippedWeapon = Weapons[CurrWeaponIndex];
 	if (EquippedWeapon)
 	{
 		EquippedWeapon->SetOwner(GetOwner());
-		EquippedWeapon->Equip();
+		if (Value == 0)
+		{
+			if (bThrowLastWeapon)
+			{
+				// Fix me : 播放丢弃武器的蒙太奇
+			}
+			EquippedWeapon->Equip();
+		}
+		else
+		{
+			SetCombatState(ECombatState::ECS_Equipping);
+			MyCharacter->PlayAnimMontage(EquippedWeapon->EquipMontage);
+		}
 	}
-	MyCharacter->SetAnimationClass();
+	//MyCharacter->SetAnimationClass();
 
 	if (MyCharacter->IsLocallyControlled()) LocalEquipWeapon();
-	if (!MyCharacter->HasAuthority()) ServerEquipWeapon(Value);
 }
 
 void UCombatComponent::LocalEquipWeapon()
@@ -241,16 +268,44 @@ void UCombatComponent::LocalEquipWeapon()
 	LastFireTime = -100.f;
 }
 
-void UCombatComponent::ServerEquipWeapon_Implementation(int32 Value)
+void UCombatComponent::EquipNewWeapon()
+{
+	if (EquippedWeapon)
+	{
+		EquippedWeapon->Equip();
+	}
+}
+
+void UCombatComponent::EquipFinished()
+{
+	SetCombatState(ECombatState::ECS_Idle);
+}
+
+void UCombatComponent::UnequipLastWeapon()
+{
+	if (LastEquippedWeapon)
+	{
+		LastEquippedWeapon->SetWeaponState(EWeaponState::EWS_Idle);
+	}
+}
+
+void UCombatComponent::ServerEquipWeapon_Implementation(int32 Value, bool bThrowLastWeapon)
 {
 	EquipWeapon(Value);
 }
 
 void UCombatComponent::OnRep_EquippedWeapon(AWeapon* LastWeapon)
 {
-	if (MyCharacter) MyCharacter->SetAnimationClass();
-	if (EquippedWeapon) EquippedWeapon->SetWeaponState(EWeaponState::EWS_Equipped);
-	if (LastWeapon) LastEquippedWeapon = LastWeapon; 
+	//if (MyCharacter) MyCharacter->SetAnimationClass();
+	SetHUDWeapon();
+	if (EquippedWeapon && LastWeapon)
+	{
+		LastEquippedWeapon = LastWeapon;
+		if (MyCharacter && !MyCharacter->IsLocallyControlled() && LastWeapon->GetOwner() == GetOwner())
+		{
+			MyCharacter->PlayAnimMontage(EquippedWeapon->EquipMontage);
+		}
+	}
 }
 
 void UCombatComponent::OnRep_CurrWeaponIndex()
@@ -301,10 +356,11 @@ void UCombatComponent::OnRep_bIsAiming()
 bool UCombatComponent::CanFire()
 {
 	bool bCanFire = EquippedWeapon &&
-					EquippedWeapon->CanFire() &&
 					CombatState != ECombatState::ECS_Reloading &&
+					CombatState != ECombatState::ECS_Equipping &&
 					MyCharacter && !MyCharacter->GetDisableGameplay() &&
-					(EquippedWeapon->CanAutomaticFire() || GetWorld()->GetTimeSeconds() - LastFireTime >= EquippedWeapon->GetFireDelay());
+					(EquippedWeapon->CanAutomaticFire() || GetWorld()->GetTimeSeconds() - LastFireTime >= EquippedWeapon->GetFireDelay()) &&
+					EquippedWeapon->CanFire();
 	return bCanFire;
 }
 
@@ -549,8 +605,8 @@ void UCombatComponent::SetHUDWeaponAmmo()
 
 	if (WeaponWidget->AmmoText)
 	{
-		int32 Ammo = EquippedWeapon ? EquippedWeapon->Ammo : 0;
-		int32 MaxAmmo = EquippedWeapon ? EquippedWeapon->MaxAmmo : 0;
+		int32 Ammo = EquippedWeapon ? EquippedWeapon->Ammo : 1;
+		int32 MaxAmmo = EquippedWeapon ? EquippedWeapon->MaxAmmo : 1;
 		FString AmmoString = FString::Printf(TEXT("%d / %d"), Ammo, MaxAmmo);
 		WeaponWidget->AmmoText->SetText(FText::FromString(AmmoString));
 	}
@@ -567,7 +623,7 @@ void UCombatComponent::SetHUDCrosshairs(float DeltaTime)
 {
 	if (!MyCharacter || !MyController) return;
 
-	MyHUD = MyHUD ? MyHUD : MyController->GetMyHUD();
+	if (!MyHUD) MyHUD = MyController->GetMyHUD();
 	if (MyHUD)
 	{
 		InitializeHUDCrosshairs();
@@ -680,7 +736,7 @@ void UCombatComponent::KillReward()
 {
 	for (auto Weapon : Weapons)
 	{
-		if (Weapon && (Weapon->GetWeaponType() == EWeaponType::EWT_SpecialWeapon || Weapon == EquippedWeapon))
+		if (Weapon && Weapon->CanDrop() && (Weapon->GetWeaponType() == EWeaponType::EWT_SpecialWeapon || Weapon == EquippedWeapon))
 		{
 			Weapon->Drop(); 
 		}

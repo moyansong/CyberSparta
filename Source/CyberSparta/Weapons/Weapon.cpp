@@ -10,8 +10,8 @@
 #include "Components/TextBlock.h"
 #include "../CyberSparta.h"
 #include "../Characters/MyCharacter.h"
-#include "../HUD/InteractWidget.h"
-#include "../PlayerController/MyPlayerController.h"
+#include "../HUD/Player/InteractWidget.h"
+#include "../Game/PlayerControllers/MyPlayerController.h"
 #include "../Components/CombatComponent.h"
 
 AWeapon::AWeapon()
@@ -39,7 +39,7 @@ AWeapon::AWeapon()
 	InteractWidgetComponent = CreateDefaultSubobject<UWidgetComponent>(TEXT("InteractWidget"));
 	InteractWidgetComponent->SetupAttachment(RootComponent);
 
-	SetWeaponState(EWeaponState::EWS_Initialized);
+	WeaponState = EWeaponState::EWS_Initialized;
 	
 }
 
@@ -60,6 +60,7 @@ void AWeapon::BeginPlay()
 	if (InteractWidgetComponent)
 	{
 		InteractWidgetComponent->SetVisibility(false);
+		SetInteractText(FString("Pick up"));
 	}
 }
 
@@ -126,6 +127,11 @@ void AWeapon::SetMeshSimulatePhysics(UPrimitiveComponent* Mesh, bool bSimulatePh
 		Mesh->SetEnableGravity(false);
 		Mesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 	}
+}
+
+UMeshComponent* AWeapon::GetWeaponMesh() const
+{
+	return GetMesh();
 }
 
 void AWeapon::OnSphereBeginOverlap(UPrimitiveComponent* OverlappedComponent, AActor* OtherActor, UPrimitiveComponent* OtherComp, int32 OtherBodyIndex, bool bFromSweep, const FHitResult& SweepResult)
@@ -278,6 +284,8 @@ void AWeapon::Throw(FVector ThrowDirection, float Force)
 
 void AWeapon::SetWeaponState(EWeaponState State)
 {
+	if (WeaponState == State) return;
+	
 	WeaponState = State;
 	OnStateChanged();
 }
@@ -333,13 +341,13 @@ void AWeapon::OnIdled()
 	if (!SphereComponent || !MeshComponent) return;
 
 	InitialLifeSpan = 0.f;
-	MyCharacter = MyCharacter ? MyCharacter : Cast<AMyCharacter>(GetOwner());
-	if (MyCharacter) MyController = MyController ? MyController : Cast<AMyPlayerController>(MyCharacter->GetController());
 	SetSphereCollision(false);
 	SetInteractEffectVisibility(false);
 	MeshComponent->SetVisibility(false);
 	MeshComponent->SetRenderCustomDepth(false);
 	SetMeshSimulatePhysics(MeshComponent, false);
+	if (!MyCharacter) MyCharacter = Cast<AMyCharacter>(GetOwner());
+	if (MyCharacter && !MyController) MyController = Cast<AMyPlayerController>(MyCharacter->GetController());
 }
 
 void AWeapon::SetAmmo(int32 AmmoToSet)
@@ -369,7 +377,7 @@ void AWeapon::SpendRound()
 
 void AWeapon::SetHUDWeaponAmmo()
 {
-	MyCharacter = MyCharacter ? MyCharacter : Cast<AMyCharacter>(GetOwner());
+	if (!MyCharacter) MyCharacter = Cast<AMyCharacter>(GetOwner());
 	if (MyCharacter && MyCharacter->GetCombatComponent())
 	{
 		MyCharacter->GetCombatComponent()->SetHUDWeaponAmmo(); 
@@ -378,7 +386,7 @@ void AWeapon::SetHUDWeaponAmmo()
 
 void AWeapon::SetHUDWeapon()
 {
-	MyCharacter = MyCharacter ? MyCharacter : Cast<AMyCharacter>(GetOwner());
+	if (!MyCharacter) MyCharacter = Cast<AMyCharacter>(GetOwner());
 	if (MyCharacter && MyCharacter->GetCombatComponent())
 	{
 		MyCharacter->GetCombatComponent()->SetHUDWeapon();

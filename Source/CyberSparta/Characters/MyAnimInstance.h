@@ -5,6 +5,7 @@
 #include "CoreMinimal.h"
 #include "Animation/AnimInstance.h"
 #include "../Weapons/WeaponTypes.h"
+#include "CharacterTypes.h"
 #include "MyAnimInstance.generated.h"
 
 class AMyCharacter;
@@ -29,8 +30,6 @@ public:
 
 	void SetHandTransform(float DeltaTime);
 
-	void OnWeaponEquipped();
-
 private:
 //------------------------------------------Parameters----------------------------------------------------------
 	UPROPERTY(BlueprintReadOnly, Category = Paramters, meta = (AllowPrivateAccess = "true"))
@@ -44,6 +43,12 @@ private:
 
 	UPROPERTY(BlueprintReadOnly, Category = Paramters, meta = (AllowPrivateAccess = "true"))
 	EWeaponType EquippedWeaponType;
+
+	UPROPERTY(BlueprintReadOnly, Category = Paramters, meta = (AllowPrivateAccess = "true"))
+	EHitDirection HitDirection = EHitDirection::EHD_Forward;
+
+	UPROPERTY(BlueprintReadOnly, Category = Parameters, meta = (AllowPrivateAccess = "true"))
+	int32 DeathPoseIndex = 0;
 
 	UPROPERTY(BlueprintReadOnly, Category = Movement, meta = (AllowPrivateAccess = "true"))
 	float Speed;
@@ -97,7 +102,7 @@ private:
 	bool bLocallyControlled;
 
 	UPROPERTY(BlueprintReadOnly, Category = Movement, meta = (AllowPrivateAccess = "true"))
-	bool bIsAlive;
+	bool bIsAlive = true;
 
 //------------------------------------------Animations----------------------------------------------------------
 	//UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Animation, meta = (AllowPrivateAccess = "true"))

@@ -4,6 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "GameFramework/Character.h"
+#include "CharacterTypes.h"
 #include "../Types/CombatState.h"
 #include "../Types/Team.h"
 #include "MyCharacter.generated.h"
@@ -61,14 +62,32 @@ protected:
 	UFUNCTION()
 	virtual void JumpStop();
 
+	virtual bool CanJumpInternal_Implementation() const override;
+
 	UFUNCTION()
 	virtual void CrouchStart();
 	UFUNCTION()
 	virtual void CrouchStop();
 
+	virtual void Crouch(bool bClientSimulation = false) override;
+
+	virtual void UnCrouch(bool bClientSimulation = false) override;
+
 public:
 	UFUNCTION()
 	virtual void EquipWeapon(float Value);
+
+	// 设置新武器的状态，利用动画通知调用
+	UFUNCTION(BlueprintCallable)
+	void EquipNewWeapon();
+
+	// 设置人物的状态，利用动画通知调用
+	UFUNCTION(BlueprintCallable)
+	void EquipFinished();
+
+	// 设置上一把武器的状态，利用动画通知调用
+	UFUNCTION(BlueprintCallable)
+	void UnequipLastWeapon();
 
 	UFUNCTION()
 	virtual void FireStart();
@@ -111,10 +130,10 @@ public:
 	void HideCharacterIfCameraClose();
 
 	UFUNCTION()
-	void SimulateHit(const FRotator& HitDirection = FRotator::ZeroRotator, const FVector& HitLocation = FVector::ZeroVector);
+	void SimulateHit(const FVector& HitLocation = FVector::ZeroVector);
 
 	UFUNCTION(BlueprintCallable)
-	void PlayHitReactMontage(FName SectionName);
+	void PlayHitReactMontage();
 
 	UFUNCTION()
 	void ReceiveDamage(AActor* DamageActor, float Damage, const UDamageType* DamageType, AController* InstigatorController, AActor* DamageCauser);
@@ -142,7 +161,7 @@ public:
 	UFUNCTION(BlueprintCallable)
 	void Test();
 
-//------------------------------------------Set&&Get----------------------------------------------------------
+//------------------------------------------Set && Get----------------------------------------------------------
 	void SetOverlappingActor(AActor* Actor); // 只会在Server进行
 
 	FORCEINLINE USpringArmComponent* GetCameraBoom() const { return CameraBoom; }
@@ -151,12 +170,6 @@ public:
 	FORCEINLINE UCombatComponent* GetCombatComponent() const { return CombatComponent; }
 	FORCEINLINE UAttributeComponent* GetAttributeComponent() const { return AttributeComponent; }
 	FORCEINLINE ULagCompensationComponent* GetLagCompensationComponent() const { return LagCompensationComponent; }
-	
-	UFUNCTION(BlueprintCallable)
-	bool IsWeaponEquipped() const;
-
-	UFUNCTION(BlueprintCallable)
-	bool IsAiming() const;
 
 	float GetHealth() const;
 
@@ -164,41 +177,47 @@ public:
 	bool IsAlive() const;
 
 	UFUNCTION(BlueprintCallable)
-	AWeapon* GetEquippedWeapon() const;
+	bool IsAiming() const;
 
 	UFUNCTION(BlueprintCallable)
 	FVector GetHitTarget() const;
 
 	UFUNCTION(BlueprintCallable)
+	bool IsWeaponEquipped() const;
+
+	UFUNCTION(BlueprintCallable)
+	AWeapon* GetEquippedWeapon() const;
+
+	UFUNCTION(BlueprintCallable)
 	ECombatState GetCombatState() const;
 
-	FORCEINLINE bool ShouldMulticastEffect() const { return bShouldMulticastEffect; }
-
+	void SetDisableGameplay(bool DisableGameplay);
 	FORCEINLINE bool GetDisableGameplay() const { return bDisableGameplay; }
 
-	void SetDisableGameplay(bool DisableGameplay);
-
 	void SetShouldMulticastEffect(bool ShouldMulticastEffect);
-
-	void SetTeam(ETeam Team);
-
-	void SetMaxWalkSpeed(bool bIsRunning);
+	FORCEINLINE bool ShouldMulticastEffect() const { return bShouldMulticastEffect; }
 
 	ETeam GetTeam() const;
+	void SetTeam(ETeam Team);
 
 	// 根据Team选择重生点
 	void SetSpawnLocation();
-
+	
+	// 可以根据武器类型改变动画蓝图类
+	// 已废弃，所有动画采用一个动画蓝图实现
 	void SetAnimationClass();
+
+	void SetMaxWalkSpeed(bool bIsRunning);
+
+	void SetHitDirection(const FVector& HitLocation);
+	FORCEINLINE EHitDirection GetHitDirection() const { return HitDirection; }
+
 //--------------------------------------------RPC---------------------------------------------------------------
 	UFUNCTION(Server, Reliable)
 	void ServerRunStart();
 
 	UFUNCTION(Server, Reliable)
 	void ServerRunStop();
-
-	UFUNCTION(NetMulticast, Unreliable)
-	void MulticastHit(const FRotator& HitDirection = FRotator::ZeroRotator, const FVector_NetQuantize& HitLocation = FVector::ZeroVector);
 
 	UFUNCTION(Server, Reliable)
 	void ServerLeaveGame();
@@ -209,6 +228,9 @@ public:
 	// 得分不再领先
 	UFUNCTION(NetMulticast, Reliable)
 	void MulticastLostTheLead();
+
+	UFUNCTION(NetMulticast, Unreliable)
+	void MulticastHit(const FVector_NetQuantize& HitLocation = FVector::ZeroVector);
 
 //-----------------------------------------Components---------------------------------------------------------
 	UPROPERTY()
@@ -258,7 +280,7 @@ private:
 
 	// 人物头顶的Widget，展示NetRole...
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, meta = (AllowPrivateAccess = "true"), Category = Component)
-	UWidgetComponent* OverHeadWidgetComponent;
+	UWidgetComponent* OverheadWidgetComponent;
 
 	// 人物所有有关攻击的东西交由该组件完成
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, meta = (AllowPrivateAccess = "true"), Category = Component)
@@ -298,14 +320,14 @@ protected:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = Camera)
 	float CameraThreshold = 200.f; 
 
+	bool bLeftGame = false;
+
+	UPROPERTY()
+	bool bDisableGameplay = false;
+
 	// 是否广播人物的动画和特效，根据Ping决定
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = Net)
 	bool bShouldMulticastEffect = true; 
-
-	UPROPERTY(Replicated)
-	bool bDisableGameplay = false;
-
-	bool bLeftGame = false;
 
 	// 得分最高的人显示的特效
 	UPROPERTY(EditAnywhere, Category = Emitter)
@@ -320,21 +342,28 @@ protected:
 	UPROPERTY(EditAnywhere, Category = Material)
 	UMaterialInstance* RedTeamMaterial;
 
+	// 人物被打的方向
+	UPROPERTY(ReplicatedUsing = OnRep_HitDirection, VisibleAnywhere, Category = Parameter)
+	EHitDirection HitDirection = EHitDirection::EHD_Forward;
+	UFUNCTION()
+	void OnRep_HitDirection(EHitDirection LastHitDirection);
+
 public:
 	float CurrMaxSpeed;
-
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = Move)
-	float AimingJogSpeed = 500.f;
 
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = Move)
 	float RunSpeed = 1000.f;
 
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = Move)
-	float AimingWalkSpeed = 250.f;
+	float AimingJogSpeed = 650.f;
 
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = Move)
-	float CrouchWalkSpeed = 250.f;
+	float AimingWalkSpeed = 300.f;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = Move)
+	float CrouchWalkSpeed = 300.f;
 
 //------------------------------------------Delegates----------------------------------------------------------
 	FOnLeftGame OnLeftGame;
+
 };

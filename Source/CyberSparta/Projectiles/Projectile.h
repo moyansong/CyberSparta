@@ -30,12 +30,16 @@ public:
 	// 但需要保证子弹不能在复制完成前就Destroy
 	virtual void Destroyed() override;
 
-//------------------------------------------Functions----------------------------------------------------------
-	FORCEINLINE UBoxComponent* GetCollisionComponent() const { return CollisionComponent; }
+//------------------------------------------Set && Get----------------------------------------------------------
 	FORCEINLINE UStaticMeshComponent* GetMesh() const { return MeshComponent; }
+	FORCEINLINE UBoxComponent* GetCollisionComponent() const { return CollisionComponent; }
 
 	FORCEINLINE float GetDamage() const { return Damage; }
 	FORCEINLINE float GetHeadShotDamage() const { return HeadShotDamage; }
+
+	FORCEINLINE void SetUseServerSideRewind(bool UseServerSideRewind) { bUseServerSideRewind = UseServerSideRewind; }
+
+//------------------------------------------Functions----------------------------------------------------------
 
 	// OnHit会处理与网络有关的事，比如广播特效，在Server上产生伤害
 	UFUNCTION()
@@ -45,13 +49,12 @@ public:
 
 	void Explode();// 只会在Server施加伤害
 
-	FORCEINLINE void SetUseServerSideRewind(bool UseServerSideRewind) { bUseServerSideRewind = UseServerSideRewind; }
-
 	UFUNCTION()
 	virtual void SimulateHit();
 	
 	UFUNCTION(NetMulticast, Reliable)
 	void MulticastHit();
+
 private:
 //-----------------------------------------Components---------------------------------------------------------
 	UPROPERTY(EditAnywhere)
@@ -68,7 +71,7 @@ protected:
 	UProjectileMovementComponent* ProjectileMovementComponent; // 子类里创建
 
 //------------------------------------------Parameters----------------------------------------------------------
-	UPROPERTY(EditDefaultsOnly, Category = Net)
+	UPROPERTY(EditDefaultsOnly, Category = Parameter)
 	bool bShouldSimulateHit = true;
 
 	UPROPERTY(EditDefaultsOnly, Category = ShellCase)
@@ -86,14 +89,14 @@ protected:
 	UPROPERTY(EditAnywhere, Category = Damage)
 	float DamageOuterRadius = 500.f;
 
-	UPROPERTY(EditAnywhere, Category = Net)
+	UPROPERTY(EditAnywhere, Category = Parameter)
 	bool bUseServerSideRewind = true;
 
 	// 必须设置这两个值才能使用ServerSideRewind
 	FVector_NetQuantize TraceStart;
 	FVector_NetQuantize100 InitialVelocity;
 
-	UPROPERTY(EditAnywhere, Category = Speed)
+	UPROPERTY(EditAnywhere, Category = Parameter)
 	float InitialSpeed = 15000.f;
 //------------------------------------------Effects----------------------------------------------------------
 	 // 弹道轨迹特效

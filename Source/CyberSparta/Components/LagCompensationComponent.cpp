@@ -6,9 +6,9 @@
 #include "DrawDebugHelpers.h"
 #include "Kismet/GameplayStatics.h"
 #include "../CyberSparta.h"
-#include "../Weapons/HitScanWeapon.h"
-#include "../Weapons/RangedWeapon.h"
-#include "../Weapons/Shotgun.h"
+#include "../Weapons/RangedWeapons/HitScanWeapon.h"
+#include "../Weapons/RangedWeapons/RangedWeapon.h"
+#include "../Weapons/RangedWeapons/Shotgun.h"
 #include "../Projectiles/Projectile.h"
 #include "../Characters/MyCharacter.h"
 #include "../Components/AttributeComponent.h"
@@ -68,7 +68,7 @@ void ULagCompensationComponent::SaveFramePackage()
 
 void ULagCompensationComponent::SaveFramePackage(FFramePackage& Package)
 {
-	MyCharacter = MyCharacter ? MyCharacter : Cast<AMyCharacter>(GetOwner());
+	if (!MyCharacter) MyCharacter = Cast<AMyCharacter>(GetOwner());
 	if (MyCharacter)
 	{
 		Package.Character = MyCharacter;
@@ -87,6 +87,7 @@ void ULagCompensationComponent::SaveFramePackage(FFramePackage& Package)
 void ULagCompensationComponent::CacheBoxPositions(AMyCharacter* HitCharacter, FFramePackage& OutFramePackage)
 {
 	if (!HitCharacter) return;
+
 	for (auto& HitBoxPair : HitCharacter->HitCollisionBoxes)
 	{
 		if (HitBoxPair.Value)
@@ -133,6 +134,7 @@ void ULagCompensationComponent::MoveBoxs(AMyCharacter* HitCharacter, const FFram
 void ULagCompensationComponent::ResetHitBoxs(AMyCharacter* HitCharacter, const FFramePackage& Package)
 {
 	if (!HitCharacter) return;
+
 	for (auto& HitBoxPair : HitCharacter->HitCollisionBoxes)
 	{
 		if (HitBoxPair.Value)
@@ -363,8 +365,11 @@ FServerSideRewindResult ULagCompensationComponent::ConfirmHit(const FFramePackag
 	SetCharacterMeshCollision(HitCharacter, ECollisionEnabled::NoCollision);
 
 	UBoxComponent* HeadBox = HitCharacter->HitCollisionBoxes[FName("head")];
-	HeadBox->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
-	HeadBox->SetCollisionResponseToChannel(ECC_HitBox, ECollisionResponse::ECR_Block);
+	if (HeadBox)
+	{
+		HeadBox->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
+		HeadBox->SetCollisionResponseToChannel(ECC_HitBox, ECollisionResponse::ECR_Block);
+	}
 
 	FHitResult ConfirmHitResult;
 	const FVector TraceEnd = TraceStart + (HitLocation - TraceStart) * 1.25f;
@@ -419,6 +424,7 @@ FShotgunServerSideRewindResult ULagCompensationComponent::ShotgunConfirmHit(cons
 	{
 		if (!Package.Character) return FShotgunServerSideRewindResult();
 	}
+
 	FShotgunServerSideRewindResult ShotgunResult;
 	TArray<FFramePackage> CurrentFrames;
 	for (auto& Package : Packages)
@@ -434,8 +440,11 @@ FShotgunServerSideRewindResult ULagCompensationComponent::ShotgunConfirmHit(cons
 	for (auto& Package : Packages)
 	{
 		UBoxComponent* HeadBox = Package.Character->HitCollisionBoxes[FName("head")];
-		HeadBox->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
-		HeadBox->SetCollisionResponseToChannel(ECC_HitBox, ECollisionResponse::ECR_Block);
+		if (HeadBox)
+		{
+			HeadBox->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
+			HeadBox->SetCollisionResponseToChannel(ECC_HitBox, ECollisionResponse::ECR_Block);
+		}
 	}
 	UWorld* World = GetWorld();
 	for (auto& HitLocation : HitLocations)
@@ -476,7 +485,7 @@ FShotgunServerSideRewindResult ULagCompensationComponent::ShotgunConfirmHit(cons
 			}
 		}
 		UBoxComponent* HeadBox = Package.Character->HitCollisionBoxes[FName("head")];
-		HeadBox->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+		if (HeadBox) HeadBox->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 	}
 
 	for (auto& HitLocation : HitLocations)
@@ -531,14 +540,18 @@ FShotgunServerSideRewindResult ULagCompensationComponent::ShotgunConfirmHit(cons
 FServerSideRewindResult ULagCompensationComponent::ProjectileConfirmHit(const FFramePackage& Package, AMyCharacter* HitCharacter, const FVector_NetQuantize& TraceStart, const FVector_NetQuantize100& InitialVelocity, float HitTime)
 {
 	if (!HitCharacter) return FServerSideRewindResult();
+
 	FFramePackage CurrentFrame;
 	CacheBoxPositions(HitCharacter, CurrentFrame);
 	MoveBoxs(HitCharacter, Package);
 	SetCharacterMeshCollision(HitCharacter, ECollisionEnabled::NoCollision);
 	// 先把头设为可碰撞，检测是否打到头
 	UBoxComponent* HeadBox = HitCharacter->HitCollisionBoxes[FName("head")];
-	HeadBox->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
-	HeadBox->SetCollisionResponseToChannel(ECC_HitBox, ECollisionResponse::ECR_Block);
+	if (HeadBox)
+	{
+		HeadBox->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
+		HeadBox->SetCollisionResponseToChannel(ECC_HitBox, ECollisionResponse::ECR_Block);
+	}
 
 	FPredictProjectilePathParams PredictParams;
 	PredictParams.bTraceWithCollision = true;
@@ -549,8 +562,8 @@ FServerSideRewindResult ULagCompensationComponent::ProjectileConfirmHit(const FF
 	PredictParams.StartLocation = TraceStart;
 	PredictParams.TraceChannel = ECC_HitBox;
 	PredictParams.ActorsToIgnore.Add(GetOwner());
-	//PredictParams.DrawDebugTime = 5.f;
-	//PredictParams.DrawDebugType = EDrawDebugTrace::ForDuration;
+	/*PredictParams.DrawDebugTime = 5.f;
+	PredictParams.DrawDebugType = EDrawDebugTrace::ForDuration;*/
 
 	FPredictProjectilePathResult PredictResult;
 	UGameplayStatics::PredictProjectilePath(this, PredictParams, PredictResult);

@@ -169,6 +169,9 @@ public:
 	FORCEINLINE USphereComponent* GetSphere() const { return SphereComponent; }
 	FORCEINLINE UWidgetComponent* GetInteractWidget() const { return InteractWidgetComponent; }
 
+	// 获取武器的Mesh，有的武器用的是SkeletalMesh，有的是StaticMesh
+	virtual UMeshComponent* GetWeaponMesh() const;
+
 	FORCEINLINE bool IsRangedWeapon() const { return bIsRangedWeapon; }
 
 	FORCEINLINE float GetFireDelay() const { return FireDelay; }
@@ -182,6 +185,8 @@ public:
 	FORCEINLINE bool UseLeftHandIK() const { return bUseLeftHandIK; }
 
 	FORCEINLINE EWeaponType GetWeaponType() const { return WeaponType; }
+
+	FORCEINLINE EWeaponState GetWeaponState() const { return WeaponState; }
 
 	FORCEINLINE ETeam GetTeam() const { return Team; }
 
@@ -247,6 +252,7 @@ protected:
 	UPROPERTY(Replicated, EditAnywhere, Category = Parameter)
 	bool bUseServerSideRewind = true;
 
+	// 可以丢弃/掉落吗？
 	UPROPERTY(EditAnywhere, Category = Parameter)
 	bool bCanDrop = true;
 

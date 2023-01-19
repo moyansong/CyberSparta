@@ -10,18 +10,17 @@
 #include "Components/TextBlock.h"
 #include "../CyberSparta.h"
 #include "../Characters/MyCharacter.h"
-#include "../PlayerController/MyPlayerController.h"
-#include "../GameMode/MyGameMode.h"
-#include "../PlayerStates/MyPlayerState.h"
+#include "../Game/PlayerControllers/MyPlayerController.h"
+#include "../Game/GameModes/MyGameMode.h"
+#include "../Game/PlayerStates/MyPlayerState.h"
 #include "../HUD/MyHUD.h"
-#include "../HUD/AttributeWidget.h"
+#include "../HUD/Player/AttributeWidget.h"
 #include "../GameFramework/HeadShotDamageType.h"
 #include "../GameFramework/TrunkShotDamageType.h"
 
 UAttributeComponent::UAttributeComponent()
 {
 	PrimaryComponentTick.bCanEverTick = true;
-	SetIsReplicated(true);
 
 	Health = MaxHealth;
 }
@@ -143,13 +142,13 @@ void UAttributeComponent::Eliminate(AActor* DamageActor, AController* Instigator
 {
 	if (!MyCharacter || IsAlive()) return;
 	
+	SetEliminatedCollision();
 	MyCharacter->Eliminate();
 	MyCharacter->SetDisableGameplay(true); 
-	SetEliminatedCollision();
 
 	if (MyCharacter->HasAuthority())
 	{
-		MyGameMode = MyGameMode ? MyGameMode : GetWorld()->GetAuthGameMode<AMyGameMode>();
+		if (!MyGameMode) MyGameMode = GetWorld()->GetAuthGameMode<AMyGameMode>();
 		AMyPlayerController* AttackerController = Cast<AMyPlayerController>(InstigatorController);
 		AMyPlayerController* VictimController = MyController ? MyController : Cast<AMyPlayerController>(MyCharacter->Controller);
 		if (MyGameMode && AttackerController && VictimController)
@@ -170,7 +169,7 @@ void UAttributeComponent::Eliminate(AActor* DamageActor, AController* Instigator
 
 void UAttributeComponent::EliminateTimerFinished()
 {
-	MyGameMode = MyGameMode ? MyGameMode : GetWorld()->GetAuthGameMode<AMyGameMode>();
+	if (!MyGameMode) MyGameMode = GetWorld()->GetAuthGameMode<AMyGameMode>();
 	if (MyGameMode && MyCharacter && MyController)
 	{
 		MyGameMode->RequestRespawn(MyCharacter, MyController);
@@ -197,9 +196,9 @@ void UAttributeComponent::SetEliminatedCollision()
 
 bool UAttributeComponent::IsTeammate(AController* OtherPlayerController)
 {
-	if (MyController)
+	if (MyController && !MyPlayerState)
 	{
-		MyPlayerState = MyPlayerState ? MyPlayerState : MyController->GetPlayerState<AMyPlayerState>();
+		MyPlayerState = MyController->GetPlayerState<AMyPlayerState>();
 	}
 	return OtherPlayerController && MyPlayerState && MyPlayerState->IsTeammate(OtherPlayerController->GetPlayerState<AMyPlayerState>());
 }
@@ -240,6 +239,12 @@ void UAttributeComponent::UpdateHUD(AMyHUD* PlayerHUD)
 		AttributeWidget = AttributeWidget ? AttributeWidget : MyHUD->AttributeWidget;
 		SetHUDHealth();
 	}
+}
+
+void UAttributeComponent::SetHUDAttribute()
+{
+	SetHUDHealth();
+	SetHUDShield();
 }
 
 void UAttributeComponent::SetHUDHealth()

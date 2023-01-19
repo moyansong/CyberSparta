@@ -68,6 +68,7 @@ public:
 	bool IsHUDVaild();
 	void SetHUDHealth();
 	void SetHUDShield();
+	void SetHUDAttribute();
 	void SetHUDScore(float Score);
 	void SetHUDDefeats(int32 Defeats);
 	void SetHUDHeadShots(int32 HeadShots);
@@ -99,6 +100,7 @@ public:
 //------------------------------------------------Parameters--------------------------------------------------------------
 	UPROPERTY(BlueprintAssignable)
 	FOnHealthChangedSignature HealthChangedDelegate;
+
 private:
 	UPROPERTY()
 	AMyCharacter* MyCharacter;
@@ -136,6 +138,7 @@ private:
 
 	FTimerHandle EliminateTimer;
 
+	// 死亡后重生的等待时间
 	UPROPERTY(EditAnywhere, Category = Parameter)
 	float EliminateDelay = 3.f;
 
