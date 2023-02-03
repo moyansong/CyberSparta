@@ -153,6 +153,7 @@ public:
 
 	virtual void SetInteractText(const FString& InteractString);
 
+	FORCEINLINE int32 GetAmmo() const { return Ammo; }
 	void SetAmmo(int32 AmmoToSet);
 
 	void SetHUDWeapon();

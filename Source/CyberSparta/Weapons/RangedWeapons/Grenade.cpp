@@ -34,22 +34,13 @@ void AGrenade::FireStop()
 {
 	if (!CanFire() || !MyCharacter) return;
 
-	SpendRound();
 	MyCharacter->PlayAnimMontage(ThrowMontage);
-	if (HasAuthority())
-	{
-		GetWorldTimerManager().SetTimer(
-			ThrowTimer,
-			this,
-			&AGrenade::SpawnGrenade,
-			0.35f,
-			false
-		);
-	}
 }
 
 void AGrenade::SpawnGrenade()
 {
+	SpendRound();
+
 	USkeletalMeshComponent* Mesh = GetMesh();
 	UWorld* World = GetWorld();
 	if (Mesh && World && GetOwner() && ProjectileClass && MyCharacter)

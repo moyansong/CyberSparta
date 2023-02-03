@@ -17,11 +17,11 @@ public:
 	virtual void FireStart(const FVector& HitTarget) override;
 	virtual void FireStop() override;
 
+	// 在动画通知里调用
 	void SpawnGrenade();
 
 	// 扔手雷的蒙太奇
 	UPROPERTY(EditDefaultsOnly, Category = Montage)
 	UAnimMontage* ThrowMontage;
 
-	FTimerHandle ThrowTimer;
 };

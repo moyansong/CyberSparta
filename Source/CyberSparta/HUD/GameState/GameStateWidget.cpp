@@ -3,3 +3,8 @@
 
 #include "GameStateWidget.h"
 
+void UGameStateWidget::NativeTick(const FGeometry& MyGeometry, float InDeltaTime)
+{
+	Super::NativeTick(MyGeometry, InDeltaTime);
+
+}

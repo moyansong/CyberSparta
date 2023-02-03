@@ -211,13 +211,12 @@ void UCombatComponent::EquipWeapon(int32 Value, bool bThrowLastWeapon)
 	/* Value == 0时代表人物出生时或丢弃武器后装备新武器， != 0代表换武器 */
 
 	if (!MyCharacter) MyCharacter = Cast<AMyCharacter>(GetOwner());
-	if (!MyCharacter || CombatState != ECombatState::ECS_Idle) return;
+	if (!MyCharacter || CombatState == ECombatState::ECS_Equipping || CombatState == ECombatState::ECS_Reloading) return;
 	if (!MyCharacter->HasAuthority()) ServerEquipWeapon(Value, bThrowLastWeapon);
 
 	if (Weapons.IsEmpty())
 	{
 		EquippedWeapon = nullptr;
-		//MyCharacter->SetAnimationClass();
 		return;
 	}
 
@@ -244,21 +243,9 @@ void UCombatComponent::EquipWeapon(int32 Value, bool bThrowLastWeapon)
 	if (EquippedWeapon)
 	{
 		EquippedWeapon->SetOwner(GetOwner());
-		if (Value == 0)
-		{
-			if (bThrowLastWeapon)
-			{
-				// Fix me : 播放丢弃武器的蒙太奇
-			}
-			EquippedWeapon->Equip();
-		}
-		else
-		{
-			SetCombatState(ECombatState::ECS_Equipping);
-			MyCharacter->PlayAnimMontage(EquippedWeapon->EquipMontage);
-		}
+		SetCombatState(ECombatState::ECS_Equipping);
+		MyCharacter->PlayAnimMontage(EquippedWeapon->EquipMontage);
 	}
-	//MyCharacter->SetAnimationClass();
 
 	if (MyCharacter->IsLocallyControlled()) LocalEquipWeapon();
 }
@@ -268,24 +255,28 @@ void UCombatComponent::LocalEquipWeapon()
 	LastFireTime = -100.f;
 }
 
-void UCombatComponent::EquipNewWeapon()
+void UCombatComponent::ChangeWeapon(int32 Value)
 {
-	if (EquippedWeapon)
+	if (Value == 0)
 	{
-		EquippedWeapon->Equip();
+		// 卸下上一把武器
+		if (LastEquippedWeapon && Weapons.Contains(LastEquippedWeapon))
+		{
+			LastEquippedWeapon->SetWeaponState(EWeaponState::EWS_Idle);
+		}
 	}
-}
-
-void UCombatComponent::EquipFinished()
-{
-	SetCombatState(ECombatState::ECS_Idle);
-}
-
-void UCombatComponent::UnequipLastWeapon()
-{
-	if (LastEquippedWeapon)
+	else if (Value == 1)
 	{
-		LastEquippedWeapon->SetWeaponState(EWeaponState::EWS_Idle);
+		// 装备新武器
+		if (EquippedWeapon)
+		{
+			EquippedWeapon->Equip();
+		}
+	}
+	else if (Value == 2)
+	{
+		// 换武器完成
+		SetCombatState(ECombatState::ECS_Idle);
 	}
 }
 
@@ -296,15 +287,11 @@ void UCombatComponent::ServerEquipWeapon_Implementation(int32 Value, bool bThrow
 
 void UCombatComponent::OnRep_EquippedWeapon(AWeapon* LastWeapon)
 {
-	//if (MyCharacter) MyCharacter->SetAnimationClass();
 	SetHUDWeapon();
-	if (EquippedWeapon && LastWeapon)
+	LastEquippedWeapon = LastWeapon;// LastWeapon == nullptr表示扔了上把武器或者人物刚出生
+	if (EquippedWeapon && MyCharacter)
 	{
-		LastEquippedWeapon = LastWeapon;
-		if (MyCharacter && !MyCharacter->IsLocallyControlled() && LastWeapon->GetOwner() == GetOwner())
-		{
-			MyCharacter->PlayAnimMontage(EquippedWeapon->EquipMontage);
-		}
+		MyCharacter->PlayAnimMontage(EquippedWeapon->EquipMontage);
 	}
 }
 
@@ -410,6 +397,8 @@ void UCombatComponent::Fire()
 
 void UCombatComponent::LocalFire(const FVector& HitTarget)
 {
+	if (!EquippedWeapon) return;
+
 	SimulateFire();
 	EquippedWeapon->FireStart(HitTarget);
 	LastFireTime = GetWorld()->GetTimeSeconds();
@@ -472,7 +461,10 @@ void UCombatComponent::FireStop()
 
 void UCombatComponent::LocalFireStop()
 {
-	EquippedWeapon->FireStop();
+	if (EquippedWeapon)
+	{
+		EquippedWeapon->FireStop();
+	}
 }
 
 void UCombatComponent::ServerFireStop_Implementation()

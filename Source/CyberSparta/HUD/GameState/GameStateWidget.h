@@ -8,16 +8,26 @@
 
 class UTextBlock;
 class UImage;
+class AMyPlayerController;
 
 UCLASS()
 class CYBERSPARTA_API UGameStateWidget : public UUserWidget
 {
 	GENERATED_BODY()
 
+protected:
+	virtual void NativeTick(const FGeometry& MyGeometry, float InDeltaTime) override;
+
 public:
 //------------------------------------------------Parameters--------------------------------------------------------------
 	UPROPERTY(meta = (BindWidget))
 	UTextBlock* MatchCountdownText;
+
+	UPROPERTY(meta = (BindWidget))
+	UTextBlock* FPSText;
+
+	UPROPERTY(meta = (BindWidget))
+	UTextBlock* PingText;
 
 	UPROPERTY(meta = (BindWidget))
 	UImage* HighPingImage;
@@ -30,4 +40,5 @@ public:
 
 	UPROPERTY(meta = (BindWidget))
 	UTextBlock* RedTeamScoreText;
+
 };

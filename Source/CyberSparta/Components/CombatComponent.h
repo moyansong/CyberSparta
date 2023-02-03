@@ -33,13 +33,9 @@ public:
 
 	void LocalEquipWeapon();
 
-	// 设置新武器的状态，利用动画通知调用
-	void EquipNewWeapon();
-
-	void EquipFinished();
-
-	// 设置上一把武器的状态，利用动画通知调用
-	void UnequipLastWeapon();
+	// 通过动画通知调用
+	// Value == 0表示卸下上把武器，1表示装备新武器，2表示装备完成
+	void ChangeWeapon(int32 Value);
 
 	UFUNCTION()
 	void ThrowWeapon();
@@ -105,7 +101,7 @@ public:
 	void OnMontageEnded(UAnimMontage* Montage, bool bInterrupted);
 
 	void OnStateChanged();
-//-----------------------------------------------Set&&Get------------------------------------------------------------
+//---------------------------------------------Set && Get------------------------------------------------------------
 	void SetIsAiming(bool bAiming);
 
 	void SetIdleWeapon(AWeapon* Weapon);

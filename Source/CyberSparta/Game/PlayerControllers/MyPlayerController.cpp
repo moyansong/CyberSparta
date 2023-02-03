@@ -43,6 +43,14 @@ void AMyPlayerController::Tick(float DeltaTime)
 	SetHUDTime();
 	CheckTimeSync(DeltaTime);
 	CheckPing(DeltaTime);
+
+	FPSUpdateRunningTime += DeltaTime;
+	if (FPSUpdateRunningTime >= FPSUpdateFrequency)
+	{
+		FPSUpdateRunningTime = 0.f;
+		SetHUDFPS(1 / DeltaTime);
+		SetHUDPing(GetPingInMilliseconds());
+	}
 }
 
 void AMyPlayerController::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
@@ -58,13 +66,14 @@ void AMyPlayerController::CheckPing(float DeltaTime)
 	HighPingRunningTime += DeltaTime;
 	if (HighPingRunningTime > CheckPingFrequency)
 	{
-		MyPlayerState = MyPlayerState ? MyPlayerState : GetPlayerState<AMyPlayerState>();
+		if (!MyPlayerState) MyPlayerState = GetPlayerState<AMyPlayerState>();
 		if (MyPlayerState)
 		{
-			if (MyPlayerState->GetPingInMilliseconds() > HighPingThreshold)
+			const float Ping = MyPlayerState->GetPingInMilliseconds();
+			if (Ping > HighPingThreshold)
 			{
 				HighPingWarning();
-				ServerReportPingStatus(MyPlayerState->GetPingInMilliseconds());
+				ServerReportPingStatus(Ping);
 				PingAnimationRunningTime = 0.f;
 			}
 			else
@@ -247,6 +256,12 @@ FString AMyPlayerController::GetPlayerName()
 		return MyPlayerState->GetPlayerName();
 	}
 	return FString();
+}
+
+float AMyPlayerController::GetPingInMilliseconds()
+{
+	if (!MyPlayerState) MyPlayerState = GetPlayerState<AMyPlayerState>();
+	return MyPlayerState ? MyPlayerState->GetPingInMilliseconds() : 0.f;
 }
 
 void AMyPlayerController::OnPawnChanged(APawn* NewPawn)
@@ -496,6 +511,27 @@ void AMyPlayerController::SetHUDWinner()
 			}
 		}
 		MyHUD->SettlementWidget->WinnerText->SetText(FText::FromString(WinnerString));
+	}
+}
+
+void AMyPlayerController::SetHUDFPS(float FPS)
+{
+	if (!MyHUD) MyHUD = Cast<AMyHUD>(GetHUD());
+	if (MyHUD && MyHUD->GameStateWidget && MyHUD->GameStateWidget->FPSText)
+	{
+		FString FPSString = FString::FromInt(FMath::FloorToInt32(FPS));
+		MyHUD->GameStateWidget->FPSText->SetText(FText::FromString(FPSString));
+	}
+}
+
+void AMyPlayerController::SetHUDPing(float Ping)
+{
+	if (!MyHUD) MyHUD = Cast<AMyHUD>(GetHUD());
+	if (MyHUD && MyHUD->GameStateWidget && MyHUD->GameStateWidget->PingText)
+	{
+		FString PingString(FString::FromInt(FMath::FloorToInt32(Ping)));
+		PingString.Append(" ms");
+		MyHUD->GameStateWidget->PingText->SetText(FText::FromString(PingString));
 	}
 }
 

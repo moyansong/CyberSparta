@@ -58,6 +58,7 @@ protected:
 
 	void HandleMatchHasStarted();
 	void HandleMatchHasSettled();
+
 public:
 	virtual void Tick(float DeltaTime) override;
 	virtual void ReceivedPlayer() override;
@@ -82,6 +83,8 @@ public:
 
 	FString GetPlayerName();
 
+	float GetPingInMilliseconds();
+
 	void SetHUDTime();
 	void SetHUDHealth();
 	void SetHUDShield();
@@ -95,6 +98,8 @@ public:
 	void SetHUDBlueTeamScore(int32 BlueScore);
 	
 	void SetHUDWinner();
+	void SetHUDFPS(float FPS);
+	void SetHUDPing(float Ping);
 	void SetHUDMatchCountdown(float CountdownTime);
 	void SetHUDSettlementCountdown(float CountdownTime);
 	void SetHUDAnnouncementCountdown(float CountdownTime);
@@ -151,7 +156,7 @@ private:
 	float ClientServerDelta = 0.f;
 
 	// 每过这么长时间就确定一次ClientServer时间差
-	UPROPERTY(EditAnywhere, Category = Time)
+	UPROPERTY(EditAnywhere, Category = Parameter)
 	float TimeSyncFrequency = 10.f;
 
 	float TimeSyncRunningTime = 0.f;
@@ -159,13 +164,21 @@ private:
     float HighPingRunningTime = 0.f;
 	float PingAnimationRunningTime = 0.f; // Ping动画已经播放的时间
 
-	UPROPERTY(EditAnywhere, Category = Net)
-	float HighPingDuration = 5.f;	 // Ping动画显示的时间
+	// Ping动画显示的时间
+	UPROPERTY(EditAnywhere, Category = Parameter)
+	float HighPingDuration = 5.f;	
 
-	UPROPERTY(EditAnywhere, Category = Net)
-	float CheckPingFrequency = 20.f; // 每过20s检查ping是不是过高, 过高就显示ping动画
+	// 每过20s检查ping是不是过高, 过高就显示ping动画
+	UPROPERTY(EditAnywhere, Category = Parameter)
+	float CheckPingFrequency = 20.f; 
 
-	UPROPERTY(EditAnywhere, Category = Net)
-	float HighPingThreshold = 50.f;  // ping高过这个数就算高
+	// ping高过这个数就算高
+	UPROPERTY(EditAnywhere, Category = Parameter)
+	float HighPingThreshold = 50.f;  
 
+	// 每过这么久就更新一次UI上的FPS和Ping
+	UPROPERTY(EditDefaultsOnly, Category = Parameter)
+	float FPSUpdateFrequency = 1.f;
+
+	float FPSUpdateRunningTime = 0.f;
 };

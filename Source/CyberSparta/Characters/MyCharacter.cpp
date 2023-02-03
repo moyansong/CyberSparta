@@ -497,6 +497,7 @@ void AMyCharacter::FireStop()
 	}
 }
 
+// 采用增强输入实现？近战武器/不能开镜的武器按右键重击
 void AMyCharacter::TargetStart()
 {
 	if (bDisableGameplay) return;
@@ -657,27 +658,11 @@ void AMyCharacter::EquipWeapon(float Value)
 	}
 }
 
-void AMyCharacter::EquipNewWeapon()
+void AMyCharacter::ChangeWeapon(int32 Value)
 {
 	if (CombatComponent)
 	{
-		CombatComponent->EquipNewWeapon();
-	}
-}
-
-void AMyCharacter::EquipFinished()
-{
-	if (CombatComponent)
-	{
-		CombatComponent->EquipFinished();
-	}
-}
-
-void AMyCharacter::UnequipLastWeapon()
-{
-	if (CombatComponent)
-	{
-		CombatComponent->UnequipLastWeapon();
+		CombatComponent->ChangeWeapon(Value);
 	}
 }
 
@@ -953,4 +938,5 @@ void AMyCharacter::OnMontageEnded(UAnimMontage* Montage, bool bInterrupted)
 {
 	if (CombatComponent) CombatComponent->OnMontageEnded(Montage, bInterrupted);
 }
+
 

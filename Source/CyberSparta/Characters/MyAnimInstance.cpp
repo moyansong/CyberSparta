@@ -109,7 +109,8 @@ void UMyAnimInstance::SetHandTransform(float DeltaTime)
 			FRotator::ZeroRotator, 
 			OutPosition, 
 			OutRotation
-		);
+		); 
+
 		LeftHandTransform.SetLocation(OutPosition);
 		LeftHandTransform.SetRotation(FQuat(OutRotation));
 
@@ -120,8 +121,17 @@ void UMyAnimInstance::SetHandTransform(float DeltaTime)
 			FTransform RightHandTransform = CharacterMesh->GetSocketTransform(FName("hand_r"), ERelativeTransformSpace::RTS_World);
 			if (bUseRightHandRotation)
 			{
-				FRotator LookAtRotation = UKismetMathLibrary::FindLookAtRotation(RightHandTransform.GetLocation(), RightHandTransform.GetLocation() + (RightHandTransform.GetLocation() - MyCharacter->GetHitTarget()));
-				RightHandRotation = FMath::RInterpTo(RightHandRotation, LookAtRotation, DeltaTime, 25.f);
+				FRotator LookAtRotation = UKismetMathLibrary::FindLookAtRotation(
+					RightHandTransform.GetLocation(), 
+					RightHandTransform.GetLocation() + (RightHandTransform.GetLocation() - MyCharacter->GetHitTarget())
+				);
+
+				RightHandRotation = FMath::RInterpTo(
+					RightHandRotation, 
+					LookAtRotation, 
+					DeltaTime, 
+					5.f
+				);
 			}
 			else
 			{

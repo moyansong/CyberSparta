@@ -77,18 +77,6 @@ public:
 	UFUNCTION()
 	virtual void EquipWeapon(float Value);
 
-	// 设置新武器的状态，利用动画通知调用
-	UFUNCTION(BlueprintCallable)
-	void EquipNewWeapon();
-
-	// 设置人物的状态，利用动画通知调用
-	UFUNCTION(BlueprintCallable)
-	void EquipFinished();
-
-	// 设置上一把武器的状态，利用动画通知调用
-	UFUNCTION(BlueprintCallable)
-	void UnequipLastWeapon();
-
 	UFUNCTION()
 	virtual void FireStart();
 	UFUNCTION()
@@ -157,6 +145,8 @@ public:
 
 	UFUNCTION()
 	void OnMontageEnded(UAnimMontage* Montage, bool bInterrupted);
+
+	void ChangeWeapon(int32 Value);
 
 	UFUNCTION(BlueprintCallable)
 	void Test();
@@ -300,6 +290,7 @@ private:
 
 	UPROPERTY(EditAnywhere, Category = Animation)
 	TSubclassOf<UAnimInstance> DefaultAnimationClass;
+
 //------------------------------------------Parameters----------------------------------------------------------	
 protected:
 	UPROPERTY()
