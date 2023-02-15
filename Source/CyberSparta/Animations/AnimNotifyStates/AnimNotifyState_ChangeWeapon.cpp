@@ -9,7 +9,7 @@ void UAnimNotifyState_ChangeWeapon::NotifyBegin(USkeletalMeshComponent* MeshComp
 {
 	Super::NotifyBegin(MeshComp, Animation, TotalDuration, EventReference);
 
-	AMyCharacter* MyCharacter = Cast<AMyCharacter>(MeshComp->GetOuter());
+	AMyCharacter* MyCharacter = Cast<AMyCharacter>(MeshComp->GetOwner());
 	if (MyCharacter && MyCharacter->GetCombatComponent())
 	{
 		
@@ -25,7 +25,7 @@ void UAnimNotifyState_ChangeWeapon::NotifyEnd(USkeletalMeshComponent* MeshComp, 
 {
 	Super::NotifyEnd(MeshComp, Animation, EventReference);
 
-	AMyCharacter* MyCharacter = Cast<AMyCharacter>(MeshComp->GetOuter());
+	AMyCharacter* MyCharacter = Cast<AMyCharacter>(MeshComp->GetOwner());
 	if (MyCharacter && MyCharacter->GetCombatComponent())
 	{
 		

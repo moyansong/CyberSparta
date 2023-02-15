@@ -10,7 +10,7 @@ void UAnimNotifyState_ThrowGrenade::NotifyBegin(USkeletalMeshComponent* MeshComp
 {
 	Super::NotifyBegin(MeshComp, Animation, TotalDuration, EventReference);
 
-	AMyCharacter* MyCharacter = Cast<AMyCharacter>(MeshComp->GetOuter());
+	AMyCharacter* MyCharacter = Cast<AMyCharacter>(MeshComp->GetOwner());
 	if (MyCharacter && MyCharacter->HasAuthority())
 	{
 		if (AGrenade* Grenade = Cast<AGrenade>(MyCharacter->GetEquippedWeapon()))
@@ -29,7 +29,7 @@ void UAnimNotifyState_ThrowGrenade::NotifyEnd(USkeletalMeshComponent* MeshComp, 
 {
 	Super::NotifyEnd(MeshComp, Animation, EventReference);
 
-	AMyCharacter* MyCharacter = Cast<AMyCharacter>(MeshComp->GetOuter());
+	AMyCharacter* MyCharacter = Cast<AMyCharacter>(MeshComp->GetOwner());
 	if (MyCharacter && MyCharacter->HasAuthority() && MyCharacter->GetCombatComponent())
 	{
 		AGrenade* Grenade = Cast<AGrenade>(MyCharacter->GetEquippedWeapon());

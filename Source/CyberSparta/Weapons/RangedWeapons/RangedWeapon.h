@@ -9,6 +9,7 @@
 class AProjectile;
 class AShellCase;
 class USoundCue;
+class UObjectPoolComponent;
 
 UCLASS()
 class CYBERSPARTA_API ARangedWeapon : public AWeapon
@@ -57,26 +58,31 @@ protected:
 	TSubclassOf<AShellCase> ShellCaseClass;
 
 	UPROPERTY(EditAnywhere, Category = Parameter)
+	bool bUseProjectilePool = false;
+
+	UPROPERTY(EditAnywhere, Category = Target)
 	float TargetFOV = 30.f;
 
-	UPROPERTY(EditAnywhere, Category = Parameter)
+	UPROPERTY(EditAnywhere, Category = Target)
 	float TargetInterpSpeed = 20.f;
 
-	UPROPERTY(EditAnywhere, Category = Parameter)
+	UPROPERTY(EditAnywhere, Category = Target)
 	float DefaultFOV;
 
-	UPROPERTY(VisibleAnywhere, Category = Parameter)
+	UPROPERTY(VisibleAnywhere, Category = Target)
 	float CurrFOV;
 
-	UPROPERTY(VisibleAnywhere, Category = Parameter)
+	UPROPERTY(VisibleAnywhere, Category = Target)
 	bool bIsTargeting = false;
 
-	UPROPERTY(VisibleAnywhere, Category = Parameter)
+	UPROPERTY(VisibleAnywhere, Category = Target)
 	bool bCanTarget = true;
 
 	UPROPERTY(EditAnywhere, Category = Sound)
 	USoundCue* ProjectileDrySound;
 
 private:
-
+	// 存储子弹的对象池
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, meta = (AllowPrivateAccess = "true"), Category = Component)
+	UObjectPoolComponent* ProjectilePoolComponent;
 };

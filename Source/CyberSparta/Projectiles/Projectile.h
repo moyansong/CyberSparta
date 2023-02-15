@@ -3,7 +3,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
-#include "GameFramework/Actor.h"
+#include "PooledObject.h"
 #include "Projectile.generated.h"
 
 class UBoxComponent;
@@ -14,7 +14,7 @@ class USoundCue;
 class AShellCase;
 
 UCLASS()
-class CYBERSPARTA_API AProjectile : public AActor
+class CYBERSPARTA_API AProjectile : public APooledObject
 {
 	GENERATED_BODY()
 	
@@ -39,7 +39,11 @@ public:
 
 	FORCEINLINE void SetUseServerSideRewind(bool UseServerSideRewind) { bUseServerSideRewind = UseServerSideRewind; }
 
+	virtual void SetActive(bool IsActive) override;
+
 //------------------------------------------Functions----------------------------------------------------------
+
+	virtual void DestroyProjectile();
 
 	// OnHit会处理与网络有关的事，比如广播特效，在Server上产生伤害
 	UFUNCTION()
@@ -98,6 +102,8 @@ protected:
 
 	UPROPERTY(EditAnywhere, Category = Parameter)
 	float InitialSpeed = 15000.f;
+
+	bool bUseProjectilePool = false;
 //------------------------------------------Effects----------------------------------------------------------
 	 // 弹道轨迹特效
 	UPROPERTY(EditAnywhere, Category = Effect)

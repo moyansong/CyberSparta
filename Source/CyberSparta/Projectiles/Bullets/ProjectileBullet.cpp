@@ -60,6 +60,24 @@ void AProjectileBullet::PostEditChangeProperty(FPropertyChangedEvent& Event)
 }
 #endif
 
+void AProjectileBullet::SetActive(bool IsActive)
+{
+	if (IsActive)
+	{
+		if (ProjectileMovementComponent)
+		{
+			ProjectileMovementComponent->SetVelocityInLocalSpace(GetActorForwardVector() * InitialSpeed);
+		}	
+	}
+	else
+	{
+		if (ProjectileMovementComponent)
+		{
+			ProjectileMovementComponent->SetVelocityInLocalSpace(FVector::ZeroVector);
+		}
+	}
+}
+
 void AProjectileBullet::OnHit(UPrimitiveComponent* HitComp, AActor* OtherActor, UPrimitiveComponent* OtherComp, FVector NormalImpulse, const FHitResult& Hit)
 {
 	Super::OnHit(HitComp, OtherActor, OtherComp, NormalImpulse, Hit); 

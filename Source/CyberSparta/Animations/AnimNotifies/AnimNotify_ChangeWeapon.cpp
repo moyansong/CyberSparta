@@ -8,7 +8,7 @@ void UAnimNotify_ChangeWeapon::Notify(USkeletalMeshComponent* MeshComp, UAnimSeq
 {
 	Super::Notify(MeshComp, Animation, EventReference);
 
-	if (AMyCharacter* MyCharacter = Cast<AMyCharacter>(MeshComp->GetOuter()))
+	if (AMyCharacter* MyCharacter = Cast<AMyCharacter>(MeshComp->GetOwner()))
 	{
 		MyCharacter->ChangeWeapon(Value);
 	}

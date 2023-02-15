@@ -7,6 +7,8 @@
 #include "Kismet/KismetMathLibrary.h"
 #include "Kismet/GameplayStatics.h"
 #include "Sound/SoundCue.h"
+#include "PooledObject.h"
+#include "ObjectPoolComponent.h"
 #include "../../CyberSparta.h"
 #include "../../Characters/MyCharacter.h"
 #include "../../Projectiles/Projectile.h"
@@ -18,6 +20,9 @@ ARangedWeapon::ARangedWeapon()
 
 	DefaultFOV = 90.f;
 	CurrFOV = 90.f;
+
+	ProjectilePoolComponent = CreateDefaultSubobject<UObjectPoolComponent>(TEXT("ProjectilePoolComponent"));
+	ProjectilePoolComponent->SetIsReplicated(true);
 }
 
 void ARangedWeapon::BeginPlay()
@@ -88,15 +93,35 @@ AProjectile* ARangedWeapon::SpawnProjectile(const FVector& HitTarget, bool bProj
 			SpawnParams.Owner = GetOwner();
 			SpawnParams.Instigator = InstigatorPawn;
 
-			FVector ProjectileDirection = HitTarget - MuzzleTransform.GetLocation();
+			FVector ProjectileLocation = MuzzleTransform.GetLocation();
+			FVector ProjectileDirection = HitTarget - ProjectileLocation;
 			FRotator ProjectileRotation = ProjectileDirection.Rotation();
 
-			AProjectile* Projectile = World->SpawnActor<AProjectile>(
-				ProjectileClass,
-				MuzzleTransform.GetLocation(),
-				ProjectileRotation,
-				SpawnParams
-			);
+			AProjectile* Projectile = nullptr;
+
+			if (bUseProjectilePool)
+			{
+				Projectile = ProjectilePoolComponent->GetPooledObject<AProjectile>();
+				if (Projectile)
+				{
+					Projectile->SetOwner(GetOwner());
+					Projectile->SetInstigator(InstigatorPawn);
+					Projectile->SetActorLocation(ProjectileLocation);
+					Projectile->SetActorRotation(ProjectileRotation);
+					Projectile->bUseProjectilePool = bUseProjectilePool;
+					Projectile->SetActive(true);
+				}
+			}
+			else
+			{
+				Projectile = World->SpawnActor<AProjectile>(
+					ProjectileClass,
+					ProjectileLocation,
+					ProjectileRotation,
+					SpawnParams
+				);
+			}
+
 			if (Projectile)
 			{
 				Projectile->bUseServerSideRewind = bProjectileUseServerSideRewind;
@@ -169,8 +194,6 @@ void ARangedWeapon::InterpTargetFOV(float DeltaTime)
 void ARangedWeapon::Equip()
 {
 	Super::Equip();
-
-	if (!GetOwner()) return;
 
 	if (!MyCharacter) MyCharacter = Cast<AMyCharacter>(GetOwner());
 	if (MyCharacter)

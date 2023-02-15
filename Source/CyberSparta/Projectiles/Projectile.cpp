@@ -66,26 +66,31 @@ void AProjectile::BeginPlay()
 	//}
 }
 
-void AProjectile::Destroyed()
-{
-	Super::Destroyed();
-	/*if (bShouldSimulateHit)
-	{
-		SimulateHit();
-	}*/
-}
-
 void AProjectile::Tick(float DeltaTime)
 {
 	Super::Tick(DeltaTime);
 
 }
 
+void AProjectile::SetActive(bool IsActive)
+{
+	Super::SetActive(IsActive);
+
+	if (IsActive)
+	{
+		CollisionComponent->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
+	}
+	else
+	{
+		CollisionComponent->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+	}
+}
+
 void AProjectile::OnHit(UPrimitiveComponent* HitComp, AActor* OtherActor, UPrimitiveComponent* OtherComp, FVector NormalImpulse, const FHitResult& Hit)
 {
 	if (OtherActor == GetOwner())
 	{
-		Destroy();
+		DestroyProjectile();
 		return;
 	}
 
@@ -106,7 +111,7 @@ void AProjectile::OnHit(UPrimitiveComponent* HitComp, AActor* OtherActor, UPrimi
 		ApplyDamage(HitComp, OtherActor, OtherComp, NormalImpulse, Hit);
 	}
 
-	Destroy();
+	DestroyProjectile();
 }
 
 void AProjectile::SimulateHit()
@@ -165,4 +170,25 @@ void AProjectile::Explode()
 			);
 		}
 	}
+}
+
+void AProjectile::DestroyProjectile()
+{
+	if (bUseProjectilePool)
+	{
+		SetActive(false);
+	}
+	else
+	{
+		Destroy();
+	}
+}
+
+void AProjectile::Destroyed()
+{
+	Super::Destroyed();
+	/*if (bShouldSimulateHit)
+	{
+		SimulateHit();
+	}*/
 }
