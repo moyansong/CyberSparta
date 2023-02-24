@@ -272,14 +272,7 @@ void AMyCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputCompone
 
 void AMyCharacter::Test()
 {
-	if (GetCombatState() == ECombatState::ECS_Idle)
-	{
-		Cout(this, "Idle");
-	}
-	else if (GetCombatState() == ECombatState::ECS_Firing)
-	{
-		Cout(this, "Firing");
-	}
+	
 }
 
 void AMyCharacter::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const

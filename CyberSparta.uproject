@@ -23,7 +23,19 @@
 			]
 		},
 		{
+			"Name": "MultiplayerSessions",
+			"Enabled": true
+		},
+		{
+			"Name": "OnlineSubsystem",
+			"Enabled": true
+		},
+		{
 			"Name": "OnlineSubsystemSteam",
+			"Enabled": true
+		},
+		{
+			"Name": "ObjectPool",
 			"Enabled": true
 		}
 	]
